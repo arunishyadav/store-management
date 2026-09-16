@@ -179,6 +179,11 @@ public class StockEntryService {
         double universalBalance = Math.max(0.0, totalArrival - totalOutgoing);
         String universalAvailable = universalBalance > 0 ? "YES" : "NO";
 
+        for (StockEntry e : entries) {
+            e.setTotalAvailableQty(universalBalance);
+            e.setAvailableInStore(universalAvailable);
+        }
+        stockEntryRepository.saveAll(entries);
         stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
     }
 
@@ -191,18 +196,24 @@ public class StockEntryService {
             });
         } catch (Exception e) {
             System.err.println("Startup stock recalculation error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     public void recalculateAllStockEntries() {
+        System.out.println("--- STARTUP STOCK RECALCULATION STARTING ---");
         List<Material> materials = materialRepository.findAll();
+        System.out.println("Total materials found in DB: " + materials.size());
         for (Material m : materials) {
             if (m != null && m.getId() != null) {
                 try {
                     UUID locId = m.getLocation() != null ? m.getLocation().getId() : null;
                     recalculateMaterialStockBalance(m.getId(), locId);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    System.err.println("Error recalculating material " + m.getId() + ": " + e.getMessage());
+                }
             }
         }
+        System.out.println("--- STARTUP STOCK RECALCULATION COMPLETE ---");
     }
 }
