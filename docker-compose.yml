@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Spring Boot Backend + React Frontend (Single Container)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: store_management_app
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - h2_data:/app
+    depends_on:
+      - ollama
+    restart: always
+
+  # Ollama AI Engine
+  ollama:
+    image: ollama/ollama:latest
+    container_name: store_management_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: always
+
+volumes:
+  h2_data:
+  ollama_data:

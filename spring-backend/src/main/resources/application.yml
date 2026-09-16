@@ -1,0 +1,35 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: store-management
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./storedb;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 60000
+      initialization-fail-timeout: -1
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.H2Dialect}
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+app:
+  jwt:
+    secret: 9A45B951804E1F0314486580971D5745F5428F322303036495147814E6966627
+    expiration: 86400000 # 24 hours
+

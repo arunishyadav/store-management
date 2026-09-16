@@ -1,0 +1,27 @@
+# Node / React
+**/node_modules/
+**/dist/
+.env.local
+
+# Java / Maven
+**/target/
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+
+# Python / Virtual Envs
+**/.venv/
+**/venv/
+**/__pycache__/
+archive/
+
+# IDEs & System
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Database & Logs
+storedb*
+*.log
+scratch/
