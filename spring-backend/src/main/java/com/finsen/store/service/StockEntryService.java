@@ -90,14 +90,22 @@ public class StockEntryService {
             if (searchStr != null) {
                 String normSearch = searchStr.toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
                 List<Material> allMats = materialRepository.findAll();
+                List<Material> matches = new java.util.ArrayList<>();
                 for (Material m : allMats) {
                     String mCode = m.getMaterialCode() != null ? m.getMaterialCode().toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "") : "";
                     String mName = m.getName() != null ? m.getName().toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "") : "";
                     if (!normSearch.isEmpty() && ((!mCode.isEmpty() && (mCode.equals(normSearch) || normSearch.contains(mCode) || mCode.contains(normSearch))) ||
                         (!mName.isEmpty() && (mName.equals(normSearch) || normSearch.contains(mName) || mName.contains(normSearch))))) {
-                        material = m;
-                        break;
+                        matches.add(m);
                     }
+                }
+                
+                if (!matches.isEmpty()) {
+                    material = matches.stream().max(java.util.Comparator.comparingDouble(m -> {
+                        List<StockEntry> se = stockEntryRepository.findByMaterialId(m.getId());
+                        if (se == null) return 0.0;
+                        return se.stream().mapToDouble(e -> e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0).sum();
+                    })).orElse(matches.get(0));
                 }
             }
         }
@@ -295,19 +303,25 @@ public class StockEntryService {
                 } else {
                     Material master = masterMap.get(normKey);
                     logger.info("Merging duplicate material {} ({}) into master {} ({})", m.getId(), m.getName(), master.getId(), master.getName());
-                    List<StockEntry> dupEntries = stockEntryRepository.findByMaterialId(m.getId());
-                    for (StockEntry e : dupEntries) {
-                        e.setMaterial(master);
-                        stockEntryRepository.save(e);
-                    }
                     try {
-                        materialRepository.delete(m);
+                        entityManager.createNativeQuery("UPDATE stock_entries SET material_id = :masterId WHERE material_id = :dupId")
+                                     .setParameter("masterId", master.getId())
+                                     .setParameter("dupId", m.getId())
+                                     .executeUpdate();
+                        entityManager.createNativeQuery("DELETE FROM materials WHERE id = :dupId")
+                                     .setParameter("dupId", m.getId())
+                                     .executeUpdate();
                     } catch (Exception e) {
-                        logger.warn("Could not delete duplicate material {}: {}", m.getId(), e.getMessage());
+                        logger.warn("Native SQL merge/delete duplicate material {} failed: {}", m.getId(), e.getMessage());
                     }
                 }
             }
-            stockEntryRepository.flush();
+            if (entityManager != null) {
+                try {
+                    entityManager.flush();
+                    entityManager.clear();
+                } catch (Exception ignored) {}
+            }
         } catch (Exception e) {
             logger.error("Error deduplicating materials: {}", e.getMessage(), e);
         }
