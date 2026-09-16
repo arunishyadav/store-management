@@ -34,6 +34,18 @@ public class StockEntryController {
         return ResponseEntity.ok(stockEntryService.createOrUpdateEntry(entry));
     }
 
+    @GetMapping("/recalculate")
+    public ResponseEntity<String> recalculateGet() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Recalculation complete");
+    }
+
+    @PostMapping("/recalculate")
+    public ResponseEntity<String> recalculatePost() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Recalculation complete");
+    }
+
     @PutMapping("/{id:[0-9a-fA-F-]{36}}")
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STORE_INCHARGE')")
     public ResponseEntity<StockEntry> updateEntry(@PathVariable UUID id, @RequestBody StockEntry entry) {
