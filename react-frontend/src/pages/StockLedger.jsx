@@ -64,16 +64,17 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
   return totalArr;
 }
 
-function calculateStockState(row, allBackendRows) {
+function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
     if (!row || !row.materialCode) return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
     
     const targetCode = String(row.materialCode).trim().toLowerCase();
     
-    const allRows = [...allBackendRows];
+    const baseRows = Array.isArray(allBackendRows) && allBackendRows.length > 0 ? allBackendRows : (globalAllStockEntries || []);
+    const allRows = [...baseRows];
     const existingIndex = allRows.findIndex(r => r.id === row.id);
     if (existingIndex !== -1) {
         allRows[existingIndex] = row;
-    } else {
+    } else if (row.id) {
         allRows.push(row);
     }
     
@@ -107,6 +108,13 @@ function calculateStockState(row, allBackendRows) {
     Object.values(arrivalBatches).forEach(qty => {
         totalArrivalQty += qty;
     });
+
+    if (totalArrivalQty === 0 && masterMaterials && masterMaterials.length > 0) {
+        const mat = masterMaterials.find(m => m.materialCode && String(m.materialCode).trim().toLowerCase() === targetCode);
+        if (mat) {
+            totalArrivalQty = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
+        }
+    }
 
     if (totalArrivalQty === 0) {
         let maxArr = 0;
@@ -734,7 +742,11 @@ export default function StockLedger() {
         <Chip label={params.value} color={params.value === 'YES' ? 'success' : 'error'} variant="outlined" size="small" />
       ),
       valueGetter: (value, row) => {
-          return calculateStockState(row, globalAllStockEntries).available;
+          const code = row?.materialCode ? String(row.materialCode).trim().toLowerCase() : '';
+          if (code && stockStateMap[code]) {
+              return stockStateMap[code].available;
+          }
+          return calculateStockState(row, rows, materials).available;
       }
     },
     { 
@@ -769,7 +781,11 @@ export default function StockLedger() {
       type: 'number', 
       width: 110,
       valueGetter: (value, row) => {
-          return calculateStockState(row, globalAllStockEntries).runningBalance;
+          const code = row?.materialCode ? String(row.materialCode).trim().toLowerCase() : '';
+          if (code && stockStateMap[code]) {
+              return stockStateMap[code].runningBalance;
+          }
+          return calculateStockState(row, rows, materials).runningBalance;
       }
     },
     { field: 'productLength', headerName: 'Product Length', width: 130, editable: true },
@@ -926,15 +942,16 @@ export default function StockLedger() {
   // Pre-compute stock balance for each material code to make search typing 100% instant (0ms lag)
   const stockStateMap = useMemo(() => {
     const map = {};
-    (globalAllStockEntries || []).forEach(r => {
+    const entriesToUse = (rows && rows.length > 0) ? rows : (globalAllStockEntries || []);
+    entriesToUse.forEach(r => {
       if (!r.materialCode) return;
       const code = String(r.materialCode).trim().toLowerCase();
       if (!map[code]) {
-        map[code] = calculateStockState(r, globalAllStockEntries);
+        map[code] = calculateStockState(r, entriesToUse, materials);
       }
     });
     return map;
-  }, [globalAllStockEntries]);
+  }, [rows, materials]);
 
   // Memoized Filtered Rows logic for 60 FPS smooth search typing
   const filteredRows = useMemo(() => {
