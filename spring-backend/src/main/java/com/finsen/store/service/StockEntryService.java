@@ -25,14 +25,16 @@ public class StockEntryService {
     private final LocationRepository locationRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     @Autowired
-    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService) {
+    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
         this.stockEntryRepository = stockEntryRepository;
         this.materialRepository = materialRepository;
         this.locationRepository = locationRepository;
         this.messagingTemplate = messagingTemplate;
         this.emailService = emailService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public List<StockEntry> getAllEntries() {
@@ -181,20 +183,26 @@ public class StockEntryService {
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
-    @Transactional
-    public void recalculateAllStockEntries() {
+    public void onApplicationReady() {
         try {
-            List<Material> materials = materialRepository.findAll();
-            for (Material m : materials) {
-                if (m != null && m.getId() != null) {
-                    try {
-                        UUID locId = m.getLocation() != null ? m.getLocation().getId() : null;
-                        recalculateMaterialStockBalance(m.getId(), locId);
-                    } catch (Exception ignored) {}
-                }
-            }
+            transactionTemplate.execute(status -> {
+                recalculateAllStockEntries();
+                return null;
+            });
         } catch (Exception e) {
             System.err.println("Startup stock recalculation error: " + e.getMessage());
+        }
+    }
+
+    public void recalculateAllStockEntries() {
+        List<Material> materials = materialRepository.findAll();
+        for (Material m : materials) {
+            if (m != null && m.getId() != null) {
+                try {
+                    UUID locId = m.getLocation() != null ? m.getLocation().getId() : null;
+                    recalculateMaterialStockBalance(m.getId(), locId);
+                } catch (Exception ignored) {}
+            }
         }
     }
 }
