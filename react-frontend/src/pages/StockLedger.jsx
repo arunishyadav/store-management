@@ -90,6 +90,7 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
         if (!s) return '';
         let str = String(s).trim().toLowerCase();
         str = str.replace(/\(?\d{2,4}[-/\.]\d{2}[-/\.]\d{2,4}\)?/g, '');
+        str = str.replace(/bound/g, 'bond').replace(/glinder/g, 'grinder').replace(/while/g, 'wheel');
         return str.replace(/[^a-z0-9]/g, '');
     };
     const normTargetCode = normalizeStr(targetCode);

@@ -88,11 +88,11 @@ public class StockEntryService {
             }
             
             if (searchStr != null) {
-                String normSearch = searchStr.toLowerCase().replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
+                String normSearch = searchStr.toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
                 List<Material> allMats = materialRepository.findAll();
                 for (Material m : allMats) {
-                    String mCode = m.getMaterialCode() != null ? m.getMaterialCode().toLowerCase().replaceAll("[^a-z0-9]", "") : "";
-                    String mName = m.getName() != null ? m.getName().toLowerCase().replaceAll("[^a-z0-9]", "") : "";
+                    String mCode = m.getMaterialCode() != null ? m.getMaterialCode().toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "") : "";
+                    String mName = m.getName() != null ? m.getName().toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "") : "";
                     if (!normSearch.isEmpty() && ((!mCode.isEmpty() && (mCode.equals(normSearch) || normSearch.contains(mCode) || mCode.contains(normSearch))) ||
                         (!mName.isEmpty() && (mName.equals(normSearch) || normSearch.contains(mName) || mName.contains(normSearch))))) {
                         material = m;
@@ -270,6 +270,16 @@ public class StockEntryService {
         }
     }
 
+    private String normalizeMaterialKey(String code, String name) {
+        String s = ((code != null ? code : "") + "_" + (name != null ? name : "")).toLowerCase();
+        s = s.replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel");
+        s = s.replaceAll("[^a-z0-9]", "");
+        if (s.isEmpty() && name != null) {
+            s = name.toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "");
+        }
+        return s;
+    }
+
     @Transactional
     public void deduplicateMaterials() {
         try {
@@ -277,19 +287,14 @@ public class StockEntryService {
             java.util.Map<String, Material> masterMap = new java.util.HashMap<>();
             for (Material m : materials) {
                 if (m == null || m.getId() == null) continue;
-                String code = m.getMaterialCode() != null ? m.getMaterialCode() : "";
-                String name = m.getName() != null ? m.getName() : "";
-                String normKey = (code + "_" + name).toLowerCase().replaceAll("[^a-z0-9]", "");
-                if (normKey.isEmpty() && !name.isEmpty()) {
-                    normKey = name.toLowerCase().replaceAll("[^a-z0-9]", "");
-                }
+                String normKey = normalizeMaterialKey(m.getMaterialCode(), m.getName());
                 if (normKey.isEmpty()) continue;
 
                 if (!masterMap.containsKey(normKey)) {
                     masterMap.put(normKey, m);
                 } else {
                     Material master = masterMap.get(normKey);
-                    logger.info("Merging duplicate material {} into master {}", m.getId(), master.getId());
+                    logger.info("Merging duplicate material {} ({}) into master {} ({})", m.getId(), m.getName(), master.getId(), master.getName());
                     List<StockEntry> dupEntries = stockEntryRepository.findByMaterialId(m.getId());
                     for (StockEntry e : dupEntries) {
                         e.setMaterial(master);
@@ -297,7 +302,9 @@ public class StockEntryService {
                     }
                     try {
                         materialRepository.delete(m);
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        logger.warn("Could not delete duplicate material {}: {}", m.getId(), e.getMessage());
+                    }
                 }
             }
             stockEntryRepository.flush();
