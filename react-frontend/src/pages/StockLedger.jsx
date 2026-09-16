@@ -65,7 +65,7 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
 }
 
 function calculateStockState(row, allBackendRows) {
-    if (!row || !row.materialCode) return { runningBalance: 0, available: 'NO' };
+    if (!row || !row.materialCode) return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
     
     const targetCode = String(row.materialCode).trim().toLowerCase();
     
@@ -77,7 +77,7 @@ function calculateStockState(row, allBackendRows) {
         allRows.push(row);
     }
     
-    const materialRows = allRows.filter(r => r.materialCode && String(r.materialCode).trim().toLowerCase() === targetCode).map((r, i) => ({ ...r, _index: i }));
+    const materialRows = allRows.filter(r => r.materialCode && String(r.materialCode).trim().toLowerCase() === targetCode);
 
     const getNormalizedDate = (d) => {
         if (!d) return 'nodate';
@@ -86,25 +86,6 @@ function calculateStockState(row, allBackendRows) {
         }
         return String(d).substring(0, 10);
     };
-
-    materialRows.sort((a, b) => {
-        const isNewA = !!a.isNew;
-        const isNewB = !!b.isNew;
-        if (!isNewA && isNewB) return -1;
-        if (isNewA && !isNewB) return 1;
-        
-        const dateStrA = getNormalizedDate(a.issueDate || a.arrivalDate);
-        const dateStrB = getNormalizedDate(b.issueDate || b.arrivalDate);
-        if (dateStrA < dateStrB) return -1;
-        if (dateStrA > dateStrB) return 1;
-        
-        const outA = parseFloat(a.outgoingQuantity || 0);
-        const outB = parseFloat(b.outgoingQuantity || 0);
-        if (outA === 0 && outB > 0) return -1;
-        if (outA > 0 && outB === 0) return 1;
-
-        return a._index - b._index;
-    });
 
     let totalArrivalQty = 0;
     let arrivalBatches = {};
@@ -143,21 +124,6 @@ function calculateStockState(row, allBackendRows) {
 
     const overallBalance = Math.max(0, totalArrivalQty - totalOutgoingQty);
     const overallAvailable = overallBalance > 0 ? 'YES' : 'NO';
-
-    let stepCumulativeOut = 0;
-    for (let i = 0; i < materialRows.length; i++) {
-        const r = materialRows[i];
-        stepCumulativeOut += parseFloat(r.outgoingQuantity || 0);
-
-        if (r.id === row.id) {
-            const stepBalance = Math.max(0, totalArrivalQty - stepCumulativeOut);
-            return {
-                runningBalance: stepBalance,
-                currentStoreBalance: overallBalance,
-                available: overallAvailable
-            };
-        }
-    }
 
     return {
         runningBalance: overallBalance,
