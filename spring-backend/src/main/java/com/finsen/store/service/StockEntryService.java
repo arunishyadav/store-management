@@ -171,6 +171,8 @@ public class StockEntryService {
         // Explicitly update returned entity with the calculated universal balance
         savedEntry.setTotalAvailableQty(newBalance);
         savedEntry.setAvailableInStore(newBalance > 0 ? "YES" : "NO");
+        savedEntry = stockEntryRepository.save(savedEntry);
+        stockEntryRepository.flush();
         
         // Notify via WebSocket
         try {
@@ -271,7 +273,6 @@ public class StockEntryService {
         if (entityManager != null) {
             try {
                 entityManager.flush();
-                entityManager.clear();
             } catch (Exception ignored) {}
         }
         return universalBalance;
