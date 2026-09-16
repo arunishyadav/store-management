@@ -18,7 +18,7 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
 
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
-    @org.springframework.data.jpa.repository.Query(value = "UPDATE stock_entries SET total_avl_qty = :balance, available_in_store = :avail WHERE material_id = :materialId OR CAST(material_id AS VARCHAR) = CAST(:materialId AS VARCHAR)", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE stock_entries SET total_avl_qty = :balance, available_in_store = :avail WHERE material_id = :materialId", nativeQuery = true)
     void updateMaterialStockBalance(@org.springframework.data.repository.query.Param("materialId") UUID materialId, @org.springframework.data.repository.query.Param("balance") Double balance, @org.springframework.data.repository.query.Param("avail") String avail);
 
     @org.springframework.data.jpa.repository.Query(value = "SELECT m.category, m.name, SUM(sub.arrival), SUM(sub.outgoing), m.id " +
