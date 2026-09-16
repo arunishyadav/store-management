@@ -221,7 +221,7 @@ public class StockEntryService {
 
         List<StockEntry> entries = stockEntryRepository.findByMaterialId(materialId);
 
-        logger.info(">>> RECALC FOR MAT ID: {} | Entries count: {}", materialId, entries != null ? entries.size() : 0);
+        System.out.println("RECALC_DBG: MAT_ID=" + materialId + " | ENTRIES_COUNT=" + (entries != null ? entries.size() : 0));
         if (entries == null || entries.isEmpty()) return 0.0;
 
         double totalArrival = 0.0;
@@ -230,7 +230,7 @@ public class StockEntryService {
         for (StockEntry e : entries) {
             double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
             double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
-            logger.info("   -> Row ID: {} | arr={} | out={}", e.getId(), arr, out);
+            System.out.println("   RECALC_ROW: ID=" + e.getId() + " | arr=" + arr + " | out=" + out);
 
             if (arr > 0.0 && out == 0.0) {
                 String key = e.getId() != null ? e.getId().toString() : (e.getArrivalDate() + "_" + e.getArrivalTime() + "_" + arr);
@@ -259,7 +259,7 @@ public class StockEntryService {
 
         double universalBalance = Math.max(0.0, totalArrival - totalOutgoing);
         String universalAvailable = universalBalance > 0 ? "YES" : "NO";
-        logger.info("   >>> RESULT: totalArr={} | totalOut={} | universalBalance={}", totalArrival, totalOutgoing, universalBalance);
+        System.out.println("   RECALC_RESULT: totalArr=" + totalArrival + " | totalOut=" + totalOutgoing + " | universalBalance=" + universalBalance);
 
         for (StockEntry e : entries) {
             e.setTotalAvailableQty(universalBalance);
