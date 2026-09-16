@@ -1,4 +1,4 @@
-package com.finsen.store.runner;
+package com.finsen.store.util;
 
 import com.finsen.store.service.StockEntryService;
 import org.springframework.beans.factory.annotation.Autowired;
