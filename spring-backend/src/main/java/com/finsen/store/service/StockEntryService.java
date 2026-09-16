@@ -150,6 +150,7 @@ public class StockEntryService {
 
         List<StockEntry> entries = stockEntryRepository.findByMaterialId(materialId);
 
+        System.out.println(">>> RECALC FOR MAT ID: " + materialId + " | Entries count: " + (entries != null ? entries.size() : 0));
         if (entries == null || entries.isEmpty()) return 0.0;
 
         double totalArrival = 0.0;
@@ -158,6 +159,7 @@ public class StockEntryService {
         for (StockEntry e : entries) {
             double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
             double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
+            System.out.println("   -> Row ID: " + e.getId() + " | arr=" + arr + " | out=" + out);
 
             if (arr > 0.0 && out == 0.0) {
                 String key = e.getId() != null ? e.getId().toString() : (e.getArrivalDate() + "_" + e.getArrivalTime() + "_" + arr);
@@ -186,6 +188,7 @@ public class StockEntryService {
 
         double universalBalance = Math.max(0.0, totalArrival - totalOutgoing);
         String universalAvailable = universalBalance > 0 ? "YES" : "NO";
+        System.out.println("   >>> RESULT: totalArr=" + totalArrival + " | totalOut=" + totalOutgoing + " | universalBalance=" + universalBalance);
 
         for (StockEntry e : entries) {
             e.setTotalAvailableQty(universalBalance);
