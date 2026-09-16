@@ -547,7 +547,9 @@ export default function StockLedger() {
   const handleDeleteClick = (id) => async () => {
     try {
       await api.delete(`/api/v1/stock-entries/${id}`);
-      setRows(rows.filter((row) => row.id !== id));
+      setRows((prevRows) => prevRows.filter((row) => row.id !== id));
+      globalAllStockEntries = globalAllStockEntries.filter((row) => row.id !== id);
+      fetchData();
     } catch (error) {
       console.error("Delete failed", error);
     }
