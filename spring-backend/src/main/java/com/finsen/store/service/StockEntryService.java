@@ -222,19 +222,19 @@ public class StockEntryService {
     }
 
     public void recalculateAllStockEntries() {
-        System.out.println("--- STARTUP STOCK RECALCULATION STARTING ---");
+        logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
         List<Material> materials = materialRepository.findAll();
-        System.out.println("Total materials found in DB: " + materials.size());
+        logger.info("Total materials found in DB: {}", materials.size());
         for (Material m : materials) {
             if (m != null && m.getId() != null) {
                 try {
                     UUID locId = m.getLocation() != null ? m.getLocation().getId() : null;
                     recalculateMaterialStockBalance(m.getId(), locId);
                 } catch (Exception e) {
-                    System.err.println("Error recalculating material " + m.getId() + ": " + e.getMessage());
+                    logger.error("Error recalculating material {}: {}", m.getId(), e.getMessage(), e);
                 }
             }
         }
-        System.out.println("--- STARTUP STOCK RECALCULATION COMPLETE ---");
+        logger.info("--- STARTUP STOCK RECALCULATION COMPLETE ---");
     }
 }

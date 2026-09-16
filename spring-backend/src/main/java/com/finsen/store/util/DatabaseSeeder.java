@@ -29,15 +29,17 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final StockEntryRepository stockEntryRepository;
     private final SupportContactRepository supportContactRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.finsen.store.service.StockEntryService stockEntryService;
 
     @Autowired
-    public DatabaseSeeder(UserRepository userRepository, LocationRepository locationRepository, MaterialRepository materialRepository, StockEntryRepository stockEntryRepository, SupportContactRepository supportContactRepository, PasswordEncoder passwordEncoder) {
+    public DatabaseSeeder(UserRepository userRepository, LocationRepository locationRepository, MaterialRepository materialRepository, StockEntryRepository stockEntryRepository, SupportContactRepository supportContactRepository, PasswordEncoder passwordEncoder, com.finsen.store.service.StockEntryService stockEntryService) {
         this.userRepository = userRepository;
         this.locationRepository = locationRepository;
         this.materialRepository = materialRepository;
         this.stockEntryRepository = stockEntryRepository;
         this.supportContactRepository = supportContactRepository;
         this.passwordEncoder = passwordEncoder;
+        this.stockEntryService = stockEntryService;
     }
 
     @Override
@@ -234,6 +236,13 @@ public class DatabaseSeeder implements CommandLineRunner {
             supportContactRepository.save(new SupportContact(null, "IT Engineer", "Arunish Yadav", "7858937433", "arunishyadav121@gmail.com"));
             supportContactRepository.save(new SupportContact(null, "Account Head", "Sachin Sir", "9630493830", ""));
             System.out.println("Support Contacts Seeded Successfully!");
+        }
+
+        // Always run full stock recalculation on startup/seeding
+        try {
+            stockEntryService.recalculateAllStockEntries();
+        } catch (Exception e) {
+            System.err.println("Seeder stock recalculation warning: " + e.getMessage());
         }
     }
 
