@@ -357,19 +357,4 @@ public class StockEntryService {
         }
         logger.info("--- STARTUP STOCK RECALCULATION COMPLETE ---");
     }
-}
-
-@org.springframework.stereotype.Component
-class StockRecalculationRunner implements org.springframework.boot.CommandLineRunner {
-    private final StockEntryService stockEntryService;
-    @org.springframework.beans.factory.annotation.Autowired
-    public StockRecalculationRunner(StockEntryService stockEntryService) {
-        this.stockEntryService = stockEntryService;
-    }
-    @Override
-    public void run(String... args) throws Exception {
-        System.out.println("=== RUNNING COMMAND LINE STOCK RECALCULATION ===");
-        stockEntryService.recalculateAllStockEntries();
-        System.out.println("=== COMMAND LINE STOCK RECALCULATION COMPLETE ===");
-    }
-}
+}}

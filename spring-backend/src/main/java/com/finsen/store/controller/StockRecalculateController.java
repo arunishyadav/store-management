@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/recalculate")
+@RequestMapping({"/api/v1/recalculate", "/api/v1/recalculate-all"})
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class StockRecalculateController {
 
