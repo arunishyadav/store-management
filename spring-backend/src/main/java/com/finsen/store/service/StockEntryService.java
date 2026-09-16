@@ -97,6 +97,7 @@ public class StockEntryService {
         
         double arrInput = entry.getArrivalQuantity() != null ? entry.getArrivalQuantity() : 0.0;
         double outInput = entry.getOutgoingQuantity() != null ? entry.getOutgoingQuantity() : 0.0;
+        logger.info(">>> CREATE_OR_UPDATE_ENTRY CALLED: mat={} | out={} | arr={}", material.getId(), outInput, arrInput);
         if (outInput > 0.0) {
             entry.setArrivalQuantity(0.0);
         } else if (arrInput > 0.0) {
@@ -112,6 +113,7 @@ public class StockEntryService {
         
         // Universal Store Balance Recalculation across all rows for this material in DB
         double newBalance = recalculateMaterialStockBalance(material.getId(), location.getId());
+        logger.info(">>> RECALCULATED NEW_BALANCE: {}", newBalance);
         
         // Explicitly update returned entity with the calculated universal balance
         savedEntry.setTotalAvailableQty(newBalance);
