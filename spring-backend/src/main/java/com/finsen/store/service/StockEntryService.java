@@ -188,4 +188,22 @@ public class StockEntryService {
         }
         stockEntryRepository.saveAll(entries);
     }
+
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    @Transactional
+    public void recalculateAllStockEntries() {
+        try {
+            List<Material> materials = materialRepository.findAll();
+            for (Material m : materials) {
+                if (m != null && m.getId() != null) {
+                    try {
+                        UUID locId = m.getLocation() != null ? m.getLocation().getId() : null;
+                        recalculateMaterialStockBalance(m.getId(), locId);
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Startup stock recalculation error: " + e.getMessage());
+        }
+    }
 }
