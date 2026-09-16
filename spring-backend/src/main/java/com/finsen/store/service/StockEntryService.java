@@ -76,13 +76,32 @@ public class StockEntryService {
                 material = materialRepository.findById(entry.getMaterial().getId()).orElse(null);
             } catch(Exception ignored) {}
         }
-        if (material == null && entry.getMaterialCode() != null && !entry.getMaterialCode().trim().isEmpty()) {
-            String searchStr = entry.getMaterialCode().trim();
-            List<Material> matches = materialRepository.findByNameContainingIgnoreCaseOrMaterialCodeContainingIgnoreCase(searchStr, searchStr);
-            if (!matches.isEmpty()) {
-                material = matches.get(0);
+        
+        if (material == null) {
+            String searchStr = null;
+            if (entry.getMaterial() != null) {
+                if (entry.getMaterial().getMaterialCode() != null && !entry.getMaterial().getMaterialCode().trim().isEmpty()) {
+                    searchStr = entry.getMaterial().getMaterialCode().trim();
+                } else if (entry.getMaterial().getName() != null && !entry.getMaterial().getName().trim().isEmpty()) {
+                    searchStr = entry.getMaterial().getName().trim();
+                }
+            }
+            
+            if (searchStr != null) {
+                String normSearch = searchStr.toLowerCase().replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
+                List<Material> allMats = materialRepository.findAll();
+                for (Material m : allMats) {
+                    String mCode = m.getMaterialCode() != null ? m.getMaterialCode().toLowerCase().replaceAll("[^a-z0-9]", "") : "";
+                    String mName = m.getName() != null ? m.getName().toLowerCase().replaceAll("[^a-z0-9]", "") : "";
+                    if (!normSearch.isEmpty() && ((!mCode.isEmpty() && (mCode.equals(normSearch) || normSearch.contains(mCode) || mCode.contains(normSearch))) ||
+                        (!mName.isEmpty() && (mName.equals(normSearch) || normSearch.contains(mName) || mName.contains(normSearch))))) {
+                        material = m;
+                        break;
+                    }
+                }
             }
         }
+
         if (material == null) {
             material = materialRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Material not found"));
         }
@@ -252,8 +271,45 @@ public class StockEntryService {
     }
 
     @Transactional
+    public void deduplicateMaterials() {
+        try {
+            List<Material> materials = materialRepository.findAll();
+            java.util.Map<String, Material> masterMap = new java.util.HashMap<>();
+            for (Material m : materials) {
+                if (m == null || m.getId() == null) continue;
+                String code = m.getMaterialCode() != null ? m.getMaterialCode() : "";
+                String name = m.getName() != null ? m.getName() : "";
+                String normKey = (code + "_" + name).toLowerCase().replaceAll("[^a-z0-9]", "");
+                if (normKey.isEmpty() && !name.isEmpty()) {
+                    normKey = name.toLowerCase().replaceAll("[^a-z0-9]", "");
+                }
+                if (normKey.isEmpty()) continue;
+
+                if (!masterMap.containsKey(normKey)) {
+                    masterMap.put(normKey, m);
+                } else {
+                    Material master = masterMap.get(normKey);
+                    logger.info("Merging duplicate material {} into master {}", m.getId(), master.getId());
+                    List<StockEntry> dupEntries = stockEntryRepository.findByMaterialId(m.getId());
+                    for (StockEntry e : dupEntries) {
+                        e.setMaterial(master);
+                        stockEntryRepository.save(e);
+                    }
+                    try {
+                        materialRepository.delete(m);
+                    } catch (Exception ignored) {}
+                }
+            }
+            stockEntryRepository.flush();
+        } catch (Exception e) {
+            logger.error("Error deduplicating materials: {}", e.getMessage(), e);
+        }
+    }
+
+    @Transactional
     public void recalculateAllStockEntries() {
         logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
+        deduplicateMaterials();
         List<Material> materials = materialRepository.findAll();
         logger.info("Total materials found in DB: {}", materials.size());
         for (Material m : materials) {

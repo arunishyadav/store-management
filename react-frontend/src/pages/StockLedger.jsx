@@ -86,7 +86,12 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
         allRows.push(row);
     }
     
-    const normalizeStr = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizeStr = (s) => {
+        if (!s) return '';
+        let str = String(s).trim().toLowerCase();
+        str = str.replace(/\(?\d{2,4}[-/\.]\d{2}[-/\.]\d{2,4}\)?/g, '');
+        return str.replace(/[^a-z0-9]/g, '');
+    };
     const normTargetCode = normalizeStr(targetCode);
     const normTargetName = normalizeStr(targetName);
 
@@ -96,19 +101,19 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
             return true;
         }
         
-        const rCode = String(r.materialCode || '').trim().toLowerCase();
-        if (targetCode && rCode && targetCode === rCode) {
-            return true;
-        }
-        
+        const rCode = String(r.materialCode || r.material?.materialCode || '').trim().toLowerCase();
         const normRCode = normalizeStr(rCode);
-        if (normTargetCode && normRCode && normTargetCode === normRCode) {
+        if (normTargetCode && normRCode && (normTargetCode === normRCode || normTargetCode.includes(normRCode) || normRCode.includes(normTargetCode))) {
             return true;
         }
 
-        const rName = String(r.materialName || '').trim().toLowerCase();
+        const rName = String(r.materialName || r.material?.name || '').trim().toLowerCase();
         const normRName = normalizeStr(rName);
-        if (normTargetName && normRName && normTargetName === normRName) {
+        if (normTargetName && normRName && (normTargetName === normRName || normTargetName.includes(normRName) || normRName.includes(normTargetName))) {
+            return true;
+        }
+
+        if (normTargetCode && normRName && (normTargetCode === normRName || normTargetCode.includes(normRName) || normRName.includes(normTargetCode))) {
             return true;
         }
 
@@ -598,14 +603,15 @@ export default function StockLedger() {
     }
 
     // Match material case-insensitively by code, name, or particulars
-    let finalMaterialId = updatedRow.materialId || null;
-    const targetSearch = String(newRow.materialCode || newRow.materialName || '').trim().toLowerCase();
-    if (targetSearch) {
+    let finalMaterialId = updatedRow.materialId || (updatedRow.material ? updatedRow.material.id : null);
+    const rawSearch = String(newRow.materialCode || newRow.materialName || '').trim();
+    const cleanSearch = rawSearch.toLowerCase().replace(/\(?\d{2,4}[-/\.]\d{2}[-/\.]\d{2,4}\)?/g, '').replace(/[^a-z0-9]/g, '');
+    if (!finalMaterialId && cleanSearch) {
        let mat = materials.find(m => {
-          const mCode = m.materialCode ? String(m.materialCode).trim().toLowerCase() : '';
-          const mName = m.name ? String(m.name).trim().toLowerCase() : '';
-          return (mCode && (mCode === targetSearch || targetSearch.includes(mCode))) ||
-                 (mName && (mName === targetSearch || targetSearch.includes(mName) || mName.includes(targetSearch)));
+          const mCode = m.materialCode ? String(m.materialCode).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+          const mName = m.name ? String(m.name).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+          return (mCode && (mCode === cleanSearch || cleanSearch.includes(mCode) || mCode.includes(cleanSearch))) ||
+                 (mName && (mName === cleanSearch || cleanSearch.includes(mName) || mName.includes(cleanSearch)));
        });
        if (mat) {
           finalMaterialId = mat.id;
@@ -613,10 +619,10 @@ export default function StockLedger() {
           let stockMatch = globalAllStockEntries.find(r => {
              const rCode = r.materialCode || (r.material && r.material.materialCode) || '';
              const rName = r.materialName || (r.material && r.material.name) || '';
-             const normCode = String(rCode).trim().toLowerCase();
-             const normName = String(rName).trim().toLowerCase();
-             return (normCode && (normCode === targetSearch || targetSearch.includes(normCode))) ||
-                    (normName && (normName === targetSearch || targetSearch.includes(normName) || normName.includes(targetSearch)));
+             const normCode = String(rCode).toLowerCase().replace(/[^a-z0-9]/g, '');
+             const normName = String(rName).toLowerCase().replace(/[^a-z0-9]/g, '');
+             return (normCode && (normCode === cleanSearch || cleanSearch.includes(normCode) || normCode.includes(cleanSearch))) ||
+                    (normName && (normName === cleanSearch || cleanSearch.includes(normName) || normName.includes(cleanSearch)));
           });
           if (stockMatch) {
              finalMaterialId = stockMatch.material?.id || stockMatch.materialId;
