@@ -33,13 +33,27 @@ public class StockEntryService {
     private jakarta.persistence.EntityManager entityManager;
 
     @Autowired
-    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.PlatformTransactionManager transactionManager) {
         this.stockEntryRepository = stockEntryRepository;
         this.materialRepository = materialRepository;
         this.locationRepository = locationRepository;
         this.messagingTemplate = messagingTemplate;
         this.emailService = emailService;
-        this.transactionTemplate = transactionTemplate;
+        this.transactionTemplate = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+    }
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        try {
+            if (transactionTemplate != null) {
+                transactionTemplate.execute(status -> {
+                    recalculateAllStockEntries();
+                    return null;
+                });
+            }
+        } catch (Exception e) {
+            logger.error("Error during @PostConstruct recalculateAllStockEntries: {}", e.getMessage(), e);
+        }
     }
 
     public List<StockEntry> getAllEntries() {

@@ -47,4 +47,11 @@ public class StockEntryController {
         stockEntryService.deleteEntry(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/recalculate")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STORE_INCHARGE')")
+    public ResponseEntity<String> recalculateStock() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Stock recalculation completed successfully");
+    }
 }
