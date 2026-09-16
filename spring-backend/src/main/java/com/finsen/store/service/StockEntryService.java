@@ -235,6 +235,7 @@ public class StockEntryService {
         }
     }
 
+    @Transactional
     public void recalculateAllStockEntries() {
         logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
         List<Material> materials = materialRepository.findAll();
