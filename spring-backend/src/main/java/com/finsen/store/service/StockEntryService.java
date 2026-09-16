@@ -76,6 +76,14 @@ public class StockEntryService {
             location = locationRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Location not found"));
         }
         
+        double arrInput = entry.getArrivalQuantity() != null ? entry.getArrivalQuantity() : 0.0;
+        double outInput = entry.getOutgoingQuantity() != null ? entry.getOutgoingQuantity() : 0.0;
+        if (outInput > 0.0) {
+            entry.setArrivalQuantity(0.0);
+        } else if (arrInput > 0.0) {
+            entry.setOutgoingQuantity(0.0);
+        }
+
         entry.setMaterial(material);
         entry.setLocation(location);
         
@@ -147,18 +155,27 @@ public class StockEntryService {
             double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
             double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
 
-            if (out == 0.0 && arr > 0.0) {
-                String dateStr = e.getArrivalDate() != null ? e.getArrivalDate().toString() : "nodate";
-                String timeStr = e.getArrivalTime() != null ? e.getArrivalTime().toString() : "notime";
-                String batchKey = dateStr + "_" + timeStr + "_" + arr;
-                if (!arrivalBatches.containsKey(batchKey) || arr > arrivalBatches.get(batchKey)) {
-                    arrivalBatches.put(batchKey, arr);
-                }
+            if (arr > 0.0 && out == 0.0) {
+                String key = e.getId() != null ? e.getId().toString() : (e.getArrivalDate() + "_" + e.getArrivalTime() + "_" + arr);
+                arrivalBatches.put(key, arr);
             }
         }
 
         for (Double arrVal : arrivalBatches.values()) {
             totalArrival += arrVal;
+        }
+
+        if (totalArrival == 0.0) {
+            Material material = materialRepository.findById(materialId).orElse(null);
+            if (material != null) {
+                if (material.getOpeningStock() != null && material.getOpeningStock() > 0) {
+                    totalArrival = material.getOpeningStock();
+                } else if (material.getTotalArrival() != null && material.getTotalArrival() > 0) {
+                    totalArrival = material.getTotalArrival();
+                } else if (material.getTotalQuantity() != null && material.getTotalQuantity() > 0) {
+                    totalArrival = material.getTotalQuantity();
+                }
+            }
         }
 
         if (totalArrival == 0.0) {

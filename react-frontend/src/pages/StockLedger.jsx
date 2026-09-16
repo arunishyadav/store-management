@@ -123,24 +123,22 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
         return String(d).substring(0, 10);
     };
 
-    let totalArrivalQty = 0;
-    let arrivalBatches = {};
+    let arrivalMap = {};
 
     materialRows.forEach(r => {
         const outQty = parseFloat(r.outgoingQuantity || 0);
         const arrQty = parseFloat(r.arrivalQuantity || 0);
 
-        if (outQty === 0 && arrQty > 0) {
+        if (arrQty > 0 && outQty === 0) {
             const arrDate = getNormalizedDate(r.arrivalDate);
             const arrTime = r.arrivalTime || 'notime';
-            const batchKey = `${arrDate}_${arrTime}_${arrQty}`;
-            if (!arrivalBatches[batchKey] || arrQty > arrivalBatches[batchKey]) {
-                arrivalBatches[batchKey] = arrQty;
-            }
+            const batchKey = r.id || `${arrDate}_${arrTime}_${arrQty}`;
+            arrivalMap[batchKey] = arrQty;
         }
     });
 
-    Object.values(arrivalBatches).forEach(qty => {
+    let totalArrivalQty = 0;
+    Object.values(arrivalMap).forEach(qty => {
         totalArrivalQty += qty;
     });
 
@@ -281,18 +279,10 @@ function AutocompleteEditCell(props) {
     }
 
     if (targetEntry) {
-       const fieldsToCopy = ['billNumber', 'arrivalQuantity', 'arrivalDate', 'arrivalTime', 'broughtBy', 'storeInchargeName', 'productLength', 'innerDiameter', 'kg'];
+       const fieldsToCopy = ['billNumber', 'broughtBy', 'storeInchargeName', 'productLength', 'innerDiameter', 'kg'];
        fieldsToCopy.forEach(f => {
           if (targetEntry[f] !== undefined && targetEntry[f] !== null) {
               let valToSet = targetEntry[f];
-              if (f === 'arrivalDate' && typeof valToSet === 'string') {
-                  const parts = valToSet.split('-');
-                  if (parts.length === 3) {
-                      valToSet = new Date(parts[0], parts[1] - 1, parts[2]);
-                  } else {
-                      valToSet = new Date(valToSet);
-                  }
-              }
               safeSet(f, valToSet);
               updateObj[f] = valToSet;
           }
@@ -583,7 +573,15 @@ export default function StockLedger() {
     }
   };
   const processRowUpdate = async (newRow) => {
+    const out = parseFloat(newRow.outgoingQuantity || 0);
+    const arr = parseFloat(newRow.arrivalQuantity || 0);
+    
     const updatedRow = { ...newRow, isNew: false };
+    if (out > 0) {
+        updatedRow.arrivalQuantity = 0;
+    } else if (arr > 0) {
+        updatedRow.outgoingQuantity = 0;
+    }
     
     // Auto Calculate running stock balance
     const stockStateForNewRow = calculateStockState(updatedRow, globalAllStockEntries);
