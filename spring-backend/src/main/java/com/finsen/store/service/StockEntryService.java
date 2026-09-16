@@ -27,6 +27,9 @@ public class StockEntryService {
     private final EmailService emailService;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     @Autowired
     public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
         this.stockEntryRepository = stockEntryRepository;
@@ -190,6 +193,12 @@ public class StockEntryService {
         }
         stockEntryRepository.flush();
         stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
+        if (entityManager != null) {
+            try {
+                entityManager.flush();
+                entityManager.clear();
+            } catch (Exception ignored) {}
+        }
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
