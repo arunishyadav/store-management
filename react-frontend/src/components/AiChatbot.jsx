@@ -37,6 +37,99 @@ const AiChatbot = () => {
     'Lose Accessories kitna bacha hai?'
   ];
 
+  // Draggable FAB state
+  const [position, setPosition] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chatbot_position');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      x: typeof window !== 'undefined' ? Math.max(16, window.innerWidth - 72) : 300,
+      y: typeof window !== 'undefined' ? Math.max(16, window.innerHeight - 150) : 500
+    };
+  });
+
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
+  const hasMovedRef = useRef(false);
+
+  const clampPosition = (x, y) => {
+    const fabSize = 56;
+    const padding = 12;
+    const maxX = window.innerWidth - fabSize - padding;
+    const maxY = window.innerHeight - fabSize - padding;
+    return {
+      x: Math.max(padding, Math.min(maxX, x)),
+      y: Math.max(padding, Math.min(maxY, y))
+    };
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => clampPosition(prev.x, prev.y));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleStart = (e) => {
+    isDraggingRef.current = true;
+    hasMovedRef.current = false;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragStartRef.current = {
+      x: clientX,
+      y: clientY,
+      startX: position.x,
+      startY: position.y
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+  };
+
+  const handleMove = (e) => {
+    if (!isDraggingRef.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const dx = clientX - dragStartRef.current.x;
+    const dy = clientY - dragStartRef.current.y;
+
+    if (Math.hypot(dx, dy) > 5) {
+      hasMovedRef.current = true;
+      if (e.cancelable) e.preventDefault();
+    }
+
+    const newPos = clampPosition(
+      dragStartRef.current.startX + dx,
+      dragStartRef.current.startY + dy
+    );
+    setPosition(newPos);
+  };
+
+  const handleEnd = () => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+
+      if (hasMovedRef.current) {
+        setPosition((currentPos) => {
+          localStorage.setItem('chatbot_position', JSON.stringify(currentPos));
+          return currentPos;
+        });
+      } else {
+        setOpen(true);
+      }
+    }
+  };
+
   useEffect(() => {
     checkStatus();
   }, []);
@@ -178,21 +271,28 @@ const AiChatbot = () => {
   return (
     <>
       {/* Floating Action Button */}
+      {/* Floating Action Button */}
       {!open && (
         <Fab
           color="primary"
           aria-label="AI Store Assistant"
-          onClick={() => setOpen(true)}
+          onMouseDown={handleStart}
+          onTouchStart={handleStart}
           sx={{
             position: 'fixed',
-            bottom: { xs: 80, sm: 24 },
-            right: { xs: 16, sm: 24 },
+            left: `${position.x}px`,
+            top: `${position.y}px`,
             zIndex: 1300,
+            touchAction: 'none',
+            userSelect: 'none',
+            cursor: 'grab',
             background: 'linear-gradient(135deg, #0B4F6C 0%, #01BAEF 100%)',
             boxShadow: '0 8px 24px rgba(1, 186, 239, 0.4)',
-            transition: 'all 0.3s ease',
+            '&:active': {
+              cursor: 'grabbing'
+            },
             '&:hover': {
-              transform: 'scale(1.1)',
+              transform: 'scale(1.08)',
               boxShadow: '0 12px 28px rgba(1, 186, 239, 0.6)'
             }
           }}
