@@ -29,14 +29,16 @@ let globalAllStockEntries = [];
 
 function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = []) {
   if (!materialCode) return 0;
-  const targetCode = String(materialCode).trim().toLowerCase();
+  const normalizeStr = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const targetNorm = normalizeStr(materialCode);
   
   let totalArr = 0;
   const arrivalBatches = {};
   
   const rowsToUse = (allRows && allRows.length > 0) ? allRows : (globalAllStockEntries || []);
   rowsToUse.forEach(r => {
-    if (r.materialCode && String(r.materialCode).trim().toLowerCase() === targetCode) {
+    const rNorm = normalizeStr(r.materialCode);
+    if (rNorm && rNorm === targetNorm) {
       const arrQty = parseFloat(r.arrivalQuantity || 0);
       const outQty = parseFloat(r.outgoingQuantity || 0);
       if (arrQty > 0 && outQty === 0) {
@@ -55,7 +57,7 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
   });
 
   if (totalArr === 0 && masterMaterials && masterMaterials.length > 0) {
-    const mat = masterMaterials.find(m => m.materialCode && String(m.materialCode).trim().toLowerCase() === targetCode);
+    const mat = masterMaterials.find(m => normalizeStr(m.materialCode) === targetNorm || normalizeStr(m.name) === targetNorm);
     if (mat) {
       totalArr = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
     }
@@ -65,9 +67,15 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
 }
 
 function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
-    if (!row || !row.materialCode) return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
+    if (!row) return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
     
-    const targetCode = String(row.materialCode).trim().toLowerCase();
+    const targetCode = String(row.materialCode || '').trim().toLowerCase();
+    const targetName = String(row.materialName || '').trim().toLowerCase();
+    const targetMatId = row.materialId || row.material?.id || null;
+
+    if (!targetCode && !targetName && !targetMatId) {
+        return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
+    }
     
     const baseRows = Array.isArray(allBackendRows) && allBackendRows.length > 0 ? allBackendRows : (globalAllStockEntries || []);
     const allRows = [...baseRows];
@@ -78,7 +86,34 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
         allRows.push(row);
     }
     
-    const materialRows = allRows.filter(r => r.materialCode && String(r.materialCode).trim().toLowerCase() === targetCode);
+    const normalizeStr = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normTargetCode = normalizeStr(targetCode);
+    const normTargetName = normalizeStr(targetName);
+
+    const materialRows = allRows.filter(r => {
+        const rMatId = r.materialId || r.material?.id || null;
+        if (targetMatId && rMatId && String(targetMatId) === String(rMatId)) {
+            return true;
+        }
+        
+        const rCode = String(r.materialCode || '').trim().toLowerCase();
+        if (targetCode && rCode && targetCode === rCode) {
+            return true;
+        }
+        
+        const normRCode = normalizeStr(rCode);
+        if (normTargetCode && normRCode && normTargetCode === normRCode) {
+            return true;
+        }
+
+        const rName = String(r.materialName || '').trim().toLowerCase();
+        const normRName = normalizeStr(rName);
+        if (normTargetName && normRName && normTargetName === normRName) {
+            return true;
+        }
+
+        return false;
+    });
 
     const getNormalizedDate = (d) => {
         if (!d) return 'nodate';
@@ -110,7 +145,15 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
     });
 
     if (totalArrivalQty === 0 && masterMaterials && masterMaterials.length > 0) {
-        const mat = masterMaterials.find(m => m.materialCode && String(m.materialCode).trim().toLowerCase() === targetCode);
+        const mat = masterMaterials.find(m => {
+            const mId = m.id;
+            if (targetMatId && mId && String(targetMatId) === String(mId)) return true;
+            const mCode = normalizeStr(m.materialCode || '');
+            if (normTargetCode && mCode && normTargetCode === mCode) return true;
+            const mName = normalizeStr(m.name || '');
+            if (normTargetName && mName && normTargetName === mName) return true;
+            return false;
+        });
         if (mat) {
             totalArrivalQty = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
         }
