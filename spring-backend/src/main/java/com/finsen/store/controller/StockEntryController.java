@@ -34,14 +34,14 @@ public class StockEntryController {
         return ResponseEntity.ok(stockEntryService.createOrUpdateEntry(entry));
     }
 
-    @GetMapping("/recalculate")
-    public ResponseEntity<String> recalculateGet() {
+    @GetMapping("/recalculate-all")
+    public ResponseEntity<String> recalculateAllGet() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Recalculation complete");
     }
 
-    @PostMapping("/recalculate")
-    public ResponseEntity<String> recalculatePost() {
+    @PostMapping("/recalculate-all")
+    public ResponseEntity<String> recalculateAllPost() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Recalculation complete");
     }
