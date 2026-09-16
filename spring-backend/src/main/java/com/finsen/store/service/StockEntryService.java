@@ -56,11 +56,23 @@ public class StockEntryService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<StockEntry> getAllEntries() {
+        if (entityManager != null) {
+            try {
+                entityManager.clear();
+            } catch (Exception ignored) {}
+        }
         return stockEntryRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<StockEntry> getEntriesByLocation(UUID locationId) {
+        if (entityManager != null) {
+            try {
+                entityManager.clear();
+            } catch (Exception ignored) {}
+        }
         if (locationId == null) {
             return stockEntryRepository.findAll();
         }
