@@ -355,6 +355,5 @@ public class StockEntryService {
                 }
             }
         }
-        logger.info("--- STARTUP STOCK RECALCULATION COMPLETE ---");
     }
-}}
+}
