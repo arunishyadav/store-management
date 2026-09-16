@@ -63,6 +63,14 @@ public class StockEntryService {
             location = material.getLocation();
         }
         if (location == null) {
+            try {
+                User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                if (currentUser != null && currentUser.getLocation() != null) {
+                    location = currentUser.getLocation();
+                }
+            } catch (Exception ignored) {}
+        }
+        if (location == null) {
             location = locationRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Location not found"));
         }
         

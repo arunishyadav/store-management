@@ -157,6 +157,28 @@ public class DatabaseSeeder implements CommandLineRunner {
             }
         }
 
+        // Ensure Rajasthan Location has initial materials & stock entries
+        Location rajLocation = locationRepository.findAll().stream()
+                .filter(l -> l.getName().equalsIgnoreCase("Rajasthan"))
+                .findFirst().orElse(null);
+
+        if (rajLocation != null && materialRepository.findByLocationId(rajLocation.getId()).isEmpty()) {
+            try {
+                Material m1 = materialRepository.save(new Material(null, "RAJ-CEMENT", "Ultratech Cement 50kg Bag", "Civil", "Bags", 10.0, rajLocation, true));
+                Material m2 = materialRepository.save(new Material(null, "RAJ-WIRE", "Winding Wire 1.2 mm", "Electrical", "Kg", 5.0, rajLocation, true));
+                Material m3 = materialRepository.save(new Material(null, "RAJ-PIPE", "HDPE Pipe 4 inch", "Plumbing", "Mtr", 10.0, rajLocation, true));
+                Material m4 = materialRepository.save(new Material(null, "RAJ-NOJAL", "Cutting Nojal 2\"", "Civil", "Nos", 5.0, rajLocation, true));
+
+                stockEntryRepository.save(new StockEntry(null, "RAJ-ENTRY-001", m1, 500.0, LocalDate.of(2026, 6, 10), LocalTime.of(10, 0), "YES", 120.0, LocalDate.of(2026, 6, 15), "Narayan Store Incharge", "Store Incharge", 380.0, "NA", "NA", "NA", "Supplier Rajasthan", rajLocation));
+                stockEntryRepository.save(new StockEntry(null, "RAJ-ENTRY-002", m2, 100.0, LocalDate.of(2026, 6, 12), LocalTime.of(10, 0), "YES", 25.0, LocalDate.of(2026, 6, 20), "Narayan Store Incharge", "Store Incharge", 75.0, "NA", "NA", "NA", "Supplier Rajasthan", rajLocation));
+                stockEntryRepository.save(new StockEntry(null, "RAJ-ENTRY-003", m3, 200.0, LocalDate.of(2026, 7, 5), LocalTime.of(10, 0), "YES", 40.0, LocalDate.of(2026, 7, 10), "Narayan Store Incharge", "Store Incharge", 160.0, "NA", "NA", "NA", "Supplier Rajasthan", rajLocation));
+                stockEntryRepository.save(new StockEntry(null, "RAJ-ENTRY-004", m4, 50.0, LocalDate.of(2026, 7, 8), LocalTime.of(10, 0), "YES", 10.0, LocalDate.of(2026, 7, 12), "Narayan Store Incharge", "Store Incharge", 40.0, "NA", "NA", "NA", "Supplier Rajasthan", rajLocation));
+                System.out.println("✅ Initial Materials & Stock Entries for Rajasthan loaded successfully!");
+            } catch (Exception e) {
+                System.err.println("Error seeding Rajasthan data: " + e.getMessage());
+            }
+        }
+
         // Always ensure Master Super Admin accounts exist in Database with SUPER_ADMIN role (ALL STATES)
         userRepository.findByUserId("@finsen-admin").ifPresentOrElse(u -> {
             u.setRole(Role.SUPER_ADMIN);

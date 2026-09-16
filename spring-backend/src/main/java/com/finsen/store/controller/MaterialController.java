@@ -63,6 +63,14 @@ public class MaterialController {
             } catch (Exception ignored) {}
         }
         if (loc == null) {
+            try {
+                User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                if (currentUser != null && currentUser.getLocation() != null) {
+                    loc = currentUser.getLocation();
+                }
+            } catch (Exception ignored) {}
+        }
+        if (loc == null) {
             loc = locationRepository.findAll().stream().findFirst().orElse(null);
         }
         material.setLocation(loc);

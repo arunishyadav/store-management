@@ -297,6 +297,12 @@ public class AiChatService {
     private ChatResponse executeSmartFallback(String query, Map<String, Map<String, Object>> activeLocSummary, Map<String, Map<String, Object>> otherLocSummary, String activeLocName) {
         String lowerQuery = query.toLowerCase();
 
+        // 0. Check if user is asking about a specific person/client (e.g. "mohan clint ko kitna cement issue...")
+        ChatResponse personResponse = processPersonQuery(lowerQuery, activeLocSummary, activeLocName);
+        if (personResponse != null) {
+            return personResponse;
+        }
+
         // 1. Search in active location summary
         List<Map.Entry<String, Map<String, Object>>> activeMatches = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : activeLocSummary.entrySet()) {
@@ -473,5 +479,130 @@ public class AiChatService {
             }
         }
         return options;
+    }
+
+    private ChatResponse processPersonQuery(String lowerQuery, Map<String, Map<String, Object>> activeLocSummary, String activeLocName) {
+        String[] tokens = lowerQuery.split("[^a-zA-Z0-9]+");
+        List<String> queryWords = new ArrayList<>();
+        for (String t : tokens) {
+            if (t.length() >= 3 && !isQuerySystemWord(t)) {
+                queryWords.add(t);
+            }
+        }
+        if (queryWords.isEmpty()) return null;
+
+        double totalIssuedQty = 0.0;
+        double totalBroughtQty = 0.0;
+        List<String> issuedLogs = new ArrayList<>();
+        List<String> broughtLogs = new ArrayList<>();
+        Set<String> matchedPersons = new LinkedHashSet<>();
+
+        String targetMaterial = null;
+        for (Map.Entry<String, Map<String, Object>> entry : activeLocSummary.entrySet()) {
+            String mName = ((String) entry.getValue().get("materialName")).toLowerCase();
+            if (lowerQuery.contains(mName)) {
+                targetMaterial = mName;
+                break;
+            }
+        }
+
+        for (Map.Entry<String, Map<String, Object>> entry : activeLocSummary.entrySet()) {
+            String fullKey = entry.getKey();
+            String mName = ((String) entry.getValue().get("materialName")).toLowerCase();
+
+            if (targetMaterial != null && !mName.contains(targetMaterial) && !fullKey.toLowerCase().contains(targetMaterial)) {
+                continue;
+            }
+
+            List<String> outHist = (List<String>) entry.getValue().get("outgoingHistory");
+            for (String h : outHist) {
+                String hLower = h.toLowerCase();
+                for (String qw : queryWords) {
+                    if (hLower.contains(qw)) {
+                        double qty = parseQtyFromHistory(h);
+                        totalIssuedQty += qty;
+                        issuedLogs.add(String.format("• **%s**: %s", fullKey, h));
+                        matchedPersons.add(extractPersonFromHistory(h, "Issued By:"));
+                        break;
+                    }
+                }
+            }
+
+            List<String> arrHist = (List<String>) entry.getValue().get("arrivalHistory");
+            for (String h : arrHist) {
+                String hLower = h.toLowerCase();
+                for (String qw : queryWords) {
+                    if (hLower.contains(qw)) {
+                        double qty = parseQtyFromHistory(h);
+                        totalBroughtQty += qty;
+                        broughtLogs.add(String.format("• **%s**: %s", fullKey, h));
+                        matchedPersons.add(extractPersonFromHistory(h, "Brought By:"));
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (issuedLogs.isEmpty() && broughtLogs.isEmpty()) {
+            return null;
+        }
+
+        String personDisplayName = matchedPersons.isEmpty() ? "Requested Client/Person" : String.join(" / ", matchedPersons);
+        StringBuilder reply = new StringBuilder();
+        reply.append(String.format("👤 **%s** (Location: **%s**):\n\n", personDisplayName, activeLocName));
+
+        if (!issuedLogs.isEmpty()) {
+            reply.append(String.format("📤 **Total Issued (Out Hua)**: **%.1f**\n", totalIssuedQty));
+            for (String log : issuedLogs) {
+                reply.append(log).append("\n");
+            }
+        }
+
+        if (!broughtLogs.isEmpty()) {
+            reply.append(String.format("\n📥 **Total Brought (Aaya)**: **%.1f**\n", totalBroughtQty));
+            for (String log : broughtLogs) {
+                reply.append(log).append("\n");
+            }
+        }
+
+        return new ChatResponse(reply.toString(), false, List.of(), "smart-fallback", "person-engine");
+    }
+
+    private boolean isQuerySystemWord(String word) {
+        String w = word.toLowerCase();
+        return w.equals("cement") || w.equals("pipe") || w.equals("wire") || w.equals("nojal") ||
+               w.equals("flange") || w.equals("kitna") || w.equals("bacha") || w.equals("aaya") ||
+               w.equals("store") || w.equals("hai") || w.equals("kab") || w.equals("kya") ||
+               w.equals("issue") || w.equals("huwa") || w.equals("total") || w.equals("detail") ||
+               w.equals("details") || w.equals("stock") || w.equals("batao") || w.equals("aaye") ||
+               w.equals("ko") || w.equals("se") || w.equals("par") || w.equals("me");
+    }
+
+    private double parseQtyFromHistory(String historyStr) {
+        try {
+            if (historyStr.contains("Out hua:")) {
+                String s = historyStr.substring(historyStr.indexOf("Out hua:") + 8).trim();
+                s = s.split(" ")[0];
+                return Double.parseDouble(s);
+            }
+            if (historyStr.contains("Aaya:")) {
+                String s = historyStr.substring(historyStr.indexOf("Aaya:") + 5).trim();
+                s = s.split(" ")[0];
+                return Double.parseDouble(s);
+            }
+        } catch (Exception ignored) {}
+        return 0.0;
+    }
+
+    private String extractPersonFromHistory(String historyStr, String prefix) {
+        try {
+            int idx = historyStr.indexOf(prefix);
+            if (idx != -1) {
+                String p = historyStr.substring(idx + prefix.length()).trim();
+                if (p.contains("|")) p = p.substring(0, p.indexOf("|"));
+                return p.trim();
+            }
+        } catch (Exception ignored) {}
+        return "Client/Person";
     }
 }
