@@ -11,11 +11,12 @@ FROM maven:3.9.6-eclipse-temurin-21-alpine AS build-backend
 WORKDIR /app/backend
 COPY spring-backend/pom.xml ./
 ARG CACHEBURST=1
+RUN echo "Building version $CACHEBURST"
 COPY spring-backend/src ./src
 # Copy the built React app into the Spring Boot static folder
 COPY --from=build-frontend /app/frontend/dist ./src/main/resources/static
 # Build the application
-RUN mvn clean package -DskipTests
+RUN rm -rf target && mvn clean package -DskipTests
 
 # Stage 3: Run the application
 FROM eclipse-temurin:21-jre-alpine
