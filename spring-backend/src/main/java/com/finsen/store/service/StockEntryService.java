@@ -95,10 +95,11 @@ public class StockEntryService {
         StockEntry savedEntry = stockEntryRepository.save(entry);
         
         // Universal Store Balance Recalculation across all rows for this material in DB
-        recalculateMaterialStockBalance(material.getId(), location.getId());
+        double newBalance = recalculateMaterialStockBalance(material.getId(), location.getId());
         
-        // Re-fetch updated row with recalculated universal balance
-        savedEntry = stockEntryRepository.findById(savedEntry.getId()).orElse(savedEntry);
+        // Explicitly update returned entity with the calculated universal balance
+        savedEntry.setTotalAvailableQty(newBalance);
+        savedEntry.setAvailableInStore(newBalance > 0 ? "YES" : "NO");
         
         // Notify via WebSocket
         try {
@@ -144,12 +145,12 @@ public class StockEntryService {
     }
 
     @Transactional
-    public void recalculateMaterialStockBalance(UUID materialId, UUID locationId) {
-        if (materialId == null) return;
+    public double recalculateMaterialStockBalance(UUID materialId, UUID locationId) {
+        if (materialId == null) return 0.0;
 
         List<StockEntry> entries = stockEntryRepository.findByMaterialId(materialId);
 
-        if (entries == null || entries.isEmpty()) return;
+        if (entries == null || entries.isEmpty()) return 0.0;
 
         double totalArrival = 0.0;
         java.util.Map<String, Double> arrivalBatches = new java.util.HashMap<>();
@@ -199,6 +200,7 @@ public class StockEntryService {
                 entityManager.clear();
             } catch (Exception ignored) {}
         }
+        return universalBalance;
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
