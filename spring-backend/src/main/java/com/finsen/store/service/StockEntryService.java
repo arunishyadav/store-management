@@ -343,7 +343,6 @@ public class StockEntryService {
     @Transactional
     public void recalculateAllStockEntries() {
         logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
-        deduplicateMaterials();
         List<Material> materials = materialRepository.findAll();
         logger.info("Total materials found in DB: {}", materials.size());
         for (Material m : materials) {
