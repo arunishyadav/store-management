@@ -48,8 +48,7 @@ public class StockEntryController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/recalculate")
-    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STORE_INCHARGE')")
+    @RequestMapping(value = "/recalculate", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<String> recalculateStock() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Stock recalculation completed successfully");
