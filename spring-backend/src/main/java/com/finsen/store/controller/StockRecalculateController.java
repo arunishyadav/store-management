@@ -17,8 +17,14 @@ public class StockRecalculateController {
         this.stockEntryService = stockEntryService;
     }
 
-    @RequestMapping(method = {RequestMethod.GET, RequestMethod.POST})
-    public ResponseEntity<String> recalculate() {
+    @GetMapping
+    public ResponseEntity<String> recalculateGet() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Recalculation complete");
+    }
+
+    @PostMapping
+    public ResponseEntity<String> recalculatePost() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Recalculation complete");
     }

@@ -47,4 +47,16 @@ public class StockEntryController {
         stockEntryService.deleteEntry(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/recalculate-all")
+    public ResponseEntity<String> recalculateAllGet() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Recalculation complete");
+    }
+
+    @PostMapping("/recalculate-all")
+    public ResponseEntity<String> recalculateAllPost() {
+        stockEntryService.recalculateAllStockEntries();
+        return ResponseEntity.ok("Recalculation complete");
+    }
 }
