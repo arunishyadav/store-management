@@ -102,9 +102,11 @@ public class StockEntry {
     @PrePersist
     @PreUpdate
     public void calculateAvailableQuantity() {
-        double arr = arrivalQuantity != null ? arrivalQuantity : 0.0;
-        double out = outgoingQuantity != null ? outgoingQuantity : 0.0;
-        this.totalAvailableQty = arr - out;
-        this.availableInStore = this.totalAvailableQty > 0 ? "YES" : "NO";
+        if (this.totalAvailableQty == null) {
+            double arr = arrivalQuantity != null ? arrivalQuantity : 0.0;
+            double out = outgoingQuantity != null ? outgoingQuantity : 0.0;
+            this.totalAvailableQty = Math.max(0.0, arr - out);
+        }
+        this.availableInStore = (this.totalAvailableQty != null && this.totalAvailableQty > 0) ? "YES" : "NO";
     }
 }

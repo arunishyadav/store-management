@@ -10,6 +10,8 @@ import java.util.UUID;
 @Repository
 public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
     List<StockEntry> findByLocationIdOrderByArrivalDateDesc(UUID locationId);
+    List<StockEntry> findByMaterialId(UUID materialId);
+    List<StockEntry> findByMaterialIdAndLocationId(UUID materialId, UUID locationId);
     
     @org.springframework.transaction.annotation.Transactional
     void deleteByMaterialId(UUID materialId);

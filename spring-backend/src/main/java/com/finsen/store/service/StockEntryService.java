@@ -79,8 +79,13 @@ public class StockEntryService {
         
         boolean isUpdate = entry.getId() != null;
         
-        // Let @PrePersist/@PreUpdate auto-calculate totals
         StockEntry savedEntry = stockEntryRepository.save(entry);
+        
+        // Universal Store Balance Recalculation across all rows for this material in DB
+        recalculateMaterialStockBalance(material.getId(), location.getId());
+        
+        // Re-fetch updated row with recalculated universal balance
+        savedEntry = stockEntryRepository.findById(savedEntry.getId()).orElse(savedEntry);
         
         // Notify via WebSocket
         try {
@@ -101,11 +106,17 @@ public class StockEntryService {
     @Transactional
     public void deleteEntry(UUID id) {
         stockEntryRepository.findById(id).ifPresent(entry -> {
+            UUID materialId = entry.getMaterial() != null ? entry.getMaterial().getId() : null;
             UUID locationId = entry.getLocation() != null ? entry.getLocation().getId() : null;
             String locationName = entry.getLocation() != null ? entry.getLocation().getName() : "Unknown";
             String dataDetails = "Deleted Entry Bill No: " + entry.getBillNumber() + "\nMaterial: " + (entry.getMaterial() != null ? entry.getMaterial().getName() : "N/A");
             
             stockEntryRepository.delete(entry);
+            
+            if (materialId != null) {
+                recalculateMaterialStockBalance(materialId, locationId);
+            }
+
             if (locationId != null) {
                 try {
                     messagingTemplate.convertAndSend("/topic/location/" + locationId, "STOCK_UPDATED");
@@ -117,5 +128,64 @@ public class StockEntryService {
                 emailService.sendAuditEmail(currentUser, "DELETED", dataDetails, locationName);
             } catch(Exception e) {}
         });
+    }
+
+    @Transactional
+    public void recalculateMaterialStockBalance(UUID materialId, UUID locationId) {
+        if (materialId == null) return;
+
+        List<StockEntry> entries;
+        if (locationId != null) {
+            entries = stockEntryRepository.findByMaterialIdAndLocationId(materialId, locationId);
+        } else {
+            entries = stockEntryRepository.findByMaterialId(materialId);
+        }
+
+        if (entries == null || entries.isEmpty()) return;
+
+        double totalArrival = 0.0;
+        java.util.Map<String, Double> arrivalBatches = new java.util.HashMap<>();
+
+        for (StockEntry e : entries) {
+            double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
+            double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
+
+            if (out == 0.0 && arr > 0.0) {
+                String dateStr = e.getArrivalDate() != null ? e.getArrivalDate().toString() : "nodate";
+                String timeStr = e.getArrivalTime() != null ? e.getArrivalTime().toString() : "notime";
+                String batchKey = dateStr + "_" + timeStr + "_" + arr;
+                if (!arrivalBatches.containsKey(batchKey) || arr > arrivalBatches.get(batchKey)) {
+                    arrivalBatches.put(batchKey, arr);
+                }
+            }
+        }
+
+        for (Double arrVal : arrivalBatches.values()) {
+            totalArrival += arrVal;
+        }
+
+        if (totalArrival == 0.0) {
+            double maxArr = 0.0;
+            for (StockEntry e : entries) {
+                double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
+                if (arr > maxArr) maxArr = arr;
+            }
+            totalArrival = maxArr;
+        }
+
+        double totalOutgoing = 0.0;
+        for (StockEntry e : entries) {
+            double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
+            totalOutgoing += out;
+        }
+
+        double universalBalance = Math.max(0.0, totalArrival - totalOutgoing);
+        String universalAvailable = universalBalance > 0 ? "YES" : "NO";
+
+        for (StockEntry e : entries) {
+            e.setTotalAvailableQty(universalBalance);
+            e.setAvailableInStore(universalAvailable);
+        }
+        stockEntryRepository.saveAll(entries);
     }
 }
