@@ -177,11 +177,7 @@ public class StockEntryService {
         double universalBalance = Math.max(0.0, totalArrival - totalOutgoing);
         String universalAvailable = universalBalance > 0 ? "YES" : "NO";
 
-        for (StockEntry e : entries) {
-            e.setTotalAvailableQty(universalBalance);
-            e.setAvailableInStore(universalAvailable);
-        }
-        stockEntryRepository.saveAll(entries);
+        stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)

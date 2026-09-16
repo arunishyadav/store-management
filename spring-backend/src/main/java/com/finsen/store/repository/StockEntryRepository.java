@@ -16,6 +16,11 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
     @org.springframework.transaction.annotation.Transactional
     void deleteByMaterialId(UUID materialId);
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("UPDATE StockEntry s SET s.totalAvailableQty = :balance, s.availableInStore = :avail WHERE s.material.id = :materialId")
+    void updateMaterialStockBalance(@org.springframework.data.repository.query.Param("materialId") UUID materialId, @org.springframework.data.repository.query.Param("balance") Double balance, @org.springframework.data.repository.query.Param("avail") String avail);
+
     @org.springframework.data.jpa.repository.Query(value = "SELECT m.category, m.name, SUM(sub.arrival), SUM(sub.outgoing), m.id " +
                    "FROM materials m JOIN (" +
                    "  SELECT material_id, bill_number, " +
