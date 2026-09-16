@@ -166,19 +166,6 @@ public class StockEntryService {
         }
 
         if (totalArrival == 0.0) {
-            Material material = materialRepository.findById(materialId).orElse(null);
-            if (material != null) {
-                if (material.getOpeningStock() != null && material.getOpeningStock() > 0) {
-                    totalArrival = material.getOpeningStock();
-                } else if (material.getTotalArrival() != null && material.getTotalArrival() > 0) {
-                    totalArrival = material.getTotalArrival();
-                } else if (material.getTotalQuantity() != null && material.getTotalQuantity() > 0) {
-                    totalArrival = material.getTotalQuantity();
-                }
-            }
-        }
-
-        if (totalArrival == 0.0) {
             double maxArr = 0.0;
             for (StockEntry e : entries) {
                 double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
