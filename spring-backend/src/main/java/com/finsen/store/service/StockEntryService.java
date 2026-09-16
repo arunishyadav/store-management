@@ -187,7 +187,7 @@ public class StockEntryService {
             e.setTotalAvailableQty(universalBalance);
             e.setAvailableInStore(universalAvailable);
         }
-        stockEntryRepository.saveAll(entries);
+        stockEntryRepository.saveAllAndFlush(entries);
         stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
     }
 
