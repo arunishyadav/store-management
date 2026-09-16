@@ -27,6 +27,43 @@ const initialRow = {
 
 let globalAllStockEntries = [];
 
+function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = []) {
+  if (!materialCode) return 0;
+  const targetCode = String(materialCode).trim().toLowerCase();
+  
+  let totalArr = 0;
+  const arrivalBatches = {};
+  
+  const rowsToUse = (allRows && allRows.length > 0) ? allRows : (globalAllStockEntries || []);
+  rowsToUse.forEach(r => {
+    if (r.materialCode && String(r.materialCode).trim().toLowerCase() === targetCode) {
+      const arrQty = parseFloat(r.arrivalQuantity || 0);
+      const outQty = parseFloat(r.outgoingQuantity || 0);
+      if (arrQty > 0 && outQty === 0) {
+        const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : 'nodate';
+        const arrTime = r.arrivalTime || 'notime';
+        const batchKey = `${arrDate}_${arrTime}_${arrQty}`;
+        if (!arrivalBatches[batchKey] || arrQty > arrivalBatches[batchKey]) {
+          arrivalBatches[batchKey] = arrQty;
+        }
+      }
+    }
+  });
+
+  Object.values(arrivalBatches).forEach(qty => {
+    totalArr += qty;
+  });
+
+  if (totalArr === 0 && masterMaterials && masterMaterials.length > 0) {
+    const mat = masterMaterials.find(m => m.materialCode && String(m.materialCode).trim().toLowerCase() === targetCode);
+    if (mat) {
+      totalArr = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
+    }
+  }
+
+  return totalArr;
+}
+
 function calculateStockState(row, allBackendRows) {
     if (!row || !row.materialCode) return { runningBalance: 0, available: 'NO' };
     
@@ -629,7 +666,25 @@ export default function StockLedger() {
   };
 
   const columns = [
-    { field: 'billNumber', headerName: 'bill number', width: 150, editable: true },
+    { field: 'billNumber', headerName: 'bill number', width: 130, editable: true },
+    {
+      field: 'entryType',
+      headerName: 'Entry Type',
+      width: 140,
+      editable: false,
+      renderCell: (params) => {
+        const isArrival = parseFloat(params.row.arrivalQuantity || 0) > 0 && parseFloat(params.row.outgoingQuantity || 0) === 0;
+        return (
+          <Chip
+            label={isArrival ? '📥 ARRIVAL (IN)' : '📤 ISSUE (OUT)'}
+            color={isArrival ? 'success' : 'warning'}
+            variant="outlined"
+            size="small"
+            sx={{ fontWeight: 'bold', fontSize: '0.72rem' }}
+          />
+        );
+      }
+    },
     { 
       field: 'materialCode', 
       headerName: 'Search Item (Code/Name)', 
@@ -649,7 +704,46 @@ export default function StockLedger() {
       editable: true,
       renderEditCell: (params) => <NameEditCell {...params} />
     },
-    { field: 'arrivalQuantity', headerName: 'Arrival Qty', type: 'number', width: 120, editable: true },
+    { 
+      field: 'arrivalQuantity', 
+      headerName: 'Arrival Qty', 
+      type: 'number', 
+      width: 140, 
+      editable: true,
+      valueGetter: (value, row) => {
+        const arrVal = parseFloat(value || 0);
+        if (arrVal > 0) return arrVal;
+        const totalArr = getMaterialTotalArrival(row.materialCode, globalAllStockEntries, materials);
+        return totalArr > 0 ? totalArr : 0;
+      },
+      renderCell: (params) => {
+        const arrVal = parseFloat(params.row.arrivalQuantity || 0);
+        if (arrVal > 0) {
+          return (
+            <Chip 
+              label={`+${arrVal}`} 
+              color="success" 
+              size="small" 
+              sx={{ fontWeight: 'bold', fontSize: '0.78rem' }} 
+            />
+          );
+        }
+        const totalArr = getMaterialTotalArrival(params.row.materialCode, globalAllStockEntries, materials);
+        if (totalArr > 0) {
+          return (
+            <Tooltip title="Total stock arrived for this material across all arrival batches">
+              <Box display="flex" alignItems="center" gap={0.5}>
+                <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                  {totalArr}
+                </Typography>
+                <Chip label="Total" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+              </Box>
+            </Tooltip>
+          );
+        }
+        return <Typography variant="body2" color="text.disabled">0</Typography>;
+      }
+    },
     { field: 'arrivalDate', headerName: 'Store Arrival Date', type: 'date', width: 130, editable: true,
       valueGetter: (value) => value ? new Date(value) : null
     },
@@ -667,7 +761,27 @@ export default function StockLedger() {
           return calculateStockState(row, globalAllStockEntries).available;
       }
     },
-    { field: 'outgoingQuantity', headerName: 'Outgoing Quantity', type: 'number', width: 130, editable: true },
+    { 
+      field: 'outgoingQuantity', 
+      headerName: 'Outgoing Quantity', 
+      type: 'number', 
+      width: 140, 
+      editable: true,
+      renderCell: (params) => {
+        const outVal = parseFloat(params.value || 0);
+        if (outVal > 0) {
+          return (
+            <Chip 
+              label={`-${outVal}`} 
+              color="warning" 
+              size="small" 
+              sx={{ fontWeight: 'bold', fontSize: '0.78rem' }} 
+            />
+          );
+        }
+        return <Typography variant="body2" color="text.disabled">-</Typography>;
+      }
+    },
     { field: 'issueDate', headerName: 'Issue Date', type: 'date', width: 130, editable: true,
       valueGetter: (value) => value ? new Date(value) : null
     },
