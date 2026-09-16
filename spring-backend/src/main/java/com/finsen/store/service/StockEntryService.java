@@ -134,12 +134,7 @@ public class StockEntryService {
     public void recalculateMaterialStockBalance(UUID materialId, UUID locationId) {
         if (materialId == null) return;
 
-        List<StockEntry> entries;
-        if (locationId != null) {
-            entries = stockEntryRepository.findByMaterialIdAndLocationId(materialId, locationId);
-        } else {
-            entries = stockEntryRepository.findByMaterialId(materialId);
-        }
+        List<StockEntry> entries = stockEntryRepository.findByMaterialId(materialId);
 
         if (entries == null || entries.isEmpty()) return;
 
