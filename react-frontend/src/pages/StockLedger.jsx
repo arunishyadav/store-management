@@ -597,14 +597,27 @@ export default function StockLedger() {
         }
     }
 
-    // Match material case-insensitively
+    // Match material case-insensitively by code, name, or particulars
     let finalMaterialId = updatedRow.materialId || null;
-    if (newRow.materialCode) {
-       let mat = materials.find(m => m.materialCode && String(m.materialCode).trim().toLowerCase() === String(newRow.materialCode).trim().toLowerCase());
+    const targetSearch = String(newRow.materialCode || newRow.materialName || '').trim().toLowerCase();
+    if (targetSearch) {
+       let mat = materials.find(m => {
+          const mCode = m.materialCode ? String(m.materialCode).trim().toLowerCase() : '';
+          const mName = m.name ? String(m.name).trim().toLowerCase() : '';
+          return (mCode && (mCode === targetSearch || targetSearch.includes(mCode))) ||
+                 (mName && (mName === targetSearch || targetSearch.includes(mName) || mName.includes(targetSearch)));
+       });
        if (mat) {
           finalMaterialId = mat.id;
        } else {
-          let stockMatch = globalAllStockEntries.find(r => r.materialCode && String(r.materialCode).trim().toLowerCase() === String(newRow.materialCode).trim().toLowerCase());
+          let stockMatch = globalAllStockEntries.find(r => {
+             const rCode = r.materialCode || (r.material && r.material.materialCode) || '';
+             const rName = r.materialName || (r.material && r.material.name) || '';
+             const normCode = String(rCode).trim().toLowerCase();
+             const normName = String(rName).trim().toLowerCase();
+             return (normCode && (normCode === targetSearch || targetSearch.includes(normCode))) ||
+                    (normName && (normName === targetSearch || targetSearch.includes(normName) || normName.includes(targetSearch)));
+          });
           if (stockMatch) {
              finalMaterialId = stockMatch.material?.id || stockMatch.materialId;
           }

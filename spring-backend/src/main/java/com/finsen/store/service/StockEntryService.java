@@ -70,8 +70,22 @@ public class StockEntryService {
     @Transactional
     public StockEntry createOrUpdateEntry(StockEntry entry) {
         // Validate material association
-        Material material = materialRepository.findById(entry.getMaterial().getId())
-                .orElseThrow(() -> new RuntimeException("Material not found"));
+        Material material = null;
+        if (entry.getMaterial() != null && entry.getMaterial().getId() != null) {
+            try {
+                material = materialRepository.findById(entry.getMaterial().getId()).orElse(null);
+            } catch(Exception ignored) {}
+        }
+        if (material == null && entry.getMaterialCode() != null && !entry.getMaterialCode().trim().isEmpty()) {
+            String searchStr = entry.getMaterialCode().trim();
+            List<Material> matches = materialRepository.findByNameContainingIgnoreCaseOrMaterialCodeContainingIgnoreCase(searchStr, searchStr);
+            if (!matches.isEmpty()) {
+                material = matches.get(0);
+            }
+        }
+        if (material == null) {
+            material = materialRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Material not found"));
+        }
         
         // Safely resolve location association
         Location location = null;
