@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/stock-recalculate")
+@RequestMapping("/api/v1/recalculate")
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class StockRecalculateController {
 
@@ -20,12 +20,12 @@ public class StockRecalculateController {
     @GetMapping
     public ResponseEntity<String> recalculateGet() {
         stockEntryService.recalculateAllStockEntries();
-        return ResponseEntity.ok("Recalculation complete");
+        return ResponseEntity.ok("Stock recalculation completed successfully");
     }
 
     @PostMapping
     public ResponseEntity<String> recalculatePost() {
         stockEntryService.recalculateAllStockEntries();
-        return ResponseEntity.ok("Recalculation complete");
+        return ResponseEntity.ok("Stock recalculation completed successfully");
     }
 }
