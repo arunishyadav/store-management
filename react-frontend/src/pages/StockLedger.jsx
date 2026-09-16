@@ -103,7 +103,7 @@ function calculateStockState(row, allBackendRows) {
         if (outA === 0 && outB > 0) return -1;
         if (outA > 0 && outB === 0) return 1;
 
-        return b._index - a._index;
+        return a._index - b._index;
     });
 
     let totalArrivalQty = 0;
@@ -126,6 +126,15 @@ function calculateStockState(row, allBackendRows) {
     Object.values(arrivalBatches).forEach(qty => {
         totalArrivalQty += qty;
     });
+
+    if (totalArrivalQty === 0) {
+        let maxArr = 0;
+        materialRows.forEach(r => {
+            const arrQty = parseFloat(r.arrivalQuantity || 0);
+            if (arrQty > maxArr) maxArr = arrQty;
+        });
+        totalArrivalQty = maxArr;
+    }
 
     let totalOutgoingQty = 0;
     materialRows.forEach(r => {
@@ -557,10 +566,9 @@ export default function StockLedger() {
   const processRowUpdate = async (newRow) => {
     const updatedRow = { ...newRow, isNew: false };
     
-    // Auto Calculate
-    const arr = parseFloat(newRow.arrivalQuantity || 0);
-    const out = parseFloat(newRow.outgoingQuantity || 0);
-    updatedRow.totalAvailableQty = arr - out;
+    // Auto Calculate running stock balance
+    const stockStateForNewRow = calculateStockState(updatedRow, globalAllStockEntries);
+    updatedRow.totalAvailableQty = stockStateForNewRow.runningBalance;
 
     // Check stock balance before issuing (Out cannot exceed Available Stock)
     if (out > 0) {
