@@ -300,11 +300,11 @@ public class AiChatService {
         // 1. Search in active location summary
         List<Map.Entry<String, Map<String, Object>>> activeMatches = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : activeLocSummary.entrySet()) {
-            String fullKey = entry.getKey().toLowerCase();
-            String matName = ((String) entry.getValue().get("materialName")).toLowerCase();
-            String cat = ((String) entry.getValue().get("category")).toLowerCase();
+            String fullKey = entry.getKey();
+            String matName = (String) entry.getValue().get("materialName");
+            String cat = (String) entry.getValue().get("category");
 
-            if (lowerQuery.contains(matName) || lowerQuery.contains(cat) || fullKey.contains(lowerQuery) || isKeywordMatch(lowerQuery, matName)) {
+            if (isMaterialMatch(lowerQuery, matName, cat, fullKey)) {
                 activeMatches.add(entry);
             }
         }
@@ -312,33 +312,40 @@ public class AiChatService {
         // 2. Search in other locations summary
         List<Map.Entry<String, Map<String, Object>>> otherMatches = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : otherLocSummary.entrySet()) {
-            String fullKey = entry.getKey().toLowerCase();
-            String matName = ((String) entry.getValue().get("materialName")).toLowerCase();
-            String cat = ((String) entry.getValue().get("category")).toLowerCase();
+            String fullKey = entry.getKey();
+            String matName = (String) entry.getValue().get("materialName");
+            String cat = (String) entry.getValue().get("category");
 
-            if (lowerQuery.contains(matName) || lowerQuery.contains(cat) || fullKey.contains(lowerQuery) || isKeywordMatch(lowerQuery, matName)) {
+            if (isMaterialMatch(lowerQuery, matName, cat, fullKey)) {
                 otherMatches.add(entry);
             }
         }
 
         if (activeMatches.isEmpty() && otherMatches.isEmpty()) {
-            StringBuilder sb = new StringBuilder(String.format("📍 **%s** Store me maujood material summary:\n", activeLocName));
-            for (Map.Entry<String, Map<String, Object>> e : activeLocSummary.entrySet()) {
-                sb.append("• ").append(e.getKey()).append(" (Stock: ").append(e.getValue().get("totalStock")).append(" ").append(e.getValue().get("unit")).append(")\n");
-            }
-            sb.append("\nAap kisi specific material (jaise Cement, Nojal, Winding Wire) ke baare me pooch sakte hain!");
-            return new ChatResponse(sb.toString(), false, List.of(), "smart-fallback", "rule-engine");
+            String reply = String.format("❌ Aapke dwara poocha gaya material **%s** store me nahi mila.\n\nAap inme se kisi material ke baare me pooch sakte hain: **Cement**, **Pipe**, **Winding Wire**, **Flange**, **Nojal**, **Accessories**, etc.", activeLocName);
+            return new ChatResponse(reply, false, List.of(), "smart-fallback", "rule-engine");
         }
 
         // Check clarification needed if multiple active matches exist with > 0 stock
         List<Map.Entry<String, Map<String, Object>>> activeWithStock = activeMatches.stream().filter(e -> (double) e.getValue().get("totalStock") > 0).toList();
         if (activeWithStock.size() > 1) {
-            List<String> options = activeWithStock.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-            StringBuilder reply = new StringBuilder(String.format("📍 **%s** store me multiple types/sizes maujood hain. Aapko kis item ka stock check karna hai?\n\n", activeLocName));
-            for (int i = 0; i < activeWithStock.size(); i++) {
-                reply.append(i + 1).append(". ").append(activeWithStock.get(i).getKey()).append("\n");
+            // Check if query specifically matches one exact option key
+            List<Map.Entry<String, Map<String, Object>>> exactOptionMatches = new ArrayList<>();
+            for (Map.Entry<String, Map<String, Object>> e : activeWithStock) {
+                if (lowerQuery.contains(e.getKey().toLowerCase())) {
+                    exactOptionMatches.add(e);
+                }
             }
-            return new ChatResponse(reply.toString(), true, options, "smart-fallback", "rule-engine");
+            if (exactOptionMatches.size() == 1) {
+                activeMatches = exactOptionMatches;
+            } else {
+                List<String> options = activeWithStock.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+                StringBuilder reply = new StringBuilder(String.format("📍 **%s** store me multiple types/sizes maujood hain. Aapko kis item ka stock check karna hai?\n\n", activeLocName));
+                for (int i = 0; i < activeWithStock.size(); i++) {
+                    reply.append(i + 1).append(". ").append(activeWithStock.get(i).getKey()).append("\n");
+                }
+                return new ChatResponse(reply.toString(), true, options, "smart-fallback", "rule-engine");
+            }
         }
 
         // Case A: Item found in Active Location
@@ -416,6 +423,36 @@ public class AiChatService {
         }
 
         return new ChatResponse(reply.toString(), false, List.of(), "smart-fallback", "rule-engine");
+    }
+
+    private boolean isMaterialMatch(String lowerQuery, String matName, String category, String fullKey) {
+        String cleanMat = matName != null ? matName.toLowerCase() : "";
+        String cleanCat = category != null ? category.toLowerCase() : "";
+        String cleanKey = fullKey != null ? fullKey.toLowerCase() : "";
+
+        if (cleanMat.isEmpty() && cleanKey.isEmpty()) return false;
+
+        // Direct containment in either direction
+        if (lowerQuery.contains(cleanMat) || (cleanMat.length() > 3 && cleanMat.contains(lowerQuery)) ||
+            lowerQuery.contains(cleanKey) || (cleanKey.length() > 3 && cleanKey.contains(lowerQuery))) {
+            return true;
+        }
+
+        // Tokenized word search (skipping stop words)
+        String[] words = lowerQuery.split("[^a-zA-Z0-9]+");
+        for (String w : words) {
+            if (w.length() < 3) continue;
+            if (w.equals("kitna") || w.equals("bacha") || w.equals("aaya") || w.equals("store") ||
+                w.equals("hai") || w.equals("kab") || w.equals("kya") || w.equals("jankari") ||
+                w.equals("detail") || w.equals("details") || w.equals("stock") || w.equals("batao") ||
+                w.equals("hua") || w.equals("total") || w.equals("pehle") || w.equals("aaye")) continue;
+
+            if (cleanMat.contains(w) || cleanKey.contains(w) || cleanCat.contains(w)) {
+                return true;
+            }
+        }
+
+        return isKeywordMatch(lowerQuery, cleanMat);
     }
 
     private boolean isKeywordMatch(String query, String matName) {
