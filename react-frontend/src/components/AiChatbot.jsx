@@ -185,8 +185,8 @@ const AiChatbot = () => {
           onClick={() => setOpen(true)}
           sx={{
             position: 'fixed',
-            bottom: 24,
-            right: 24,
+            bottom: { xs: 80, sm: 24 },
+            right: { xs: 16, sm: 24 },
             zIndex: 1300,
             background: 'linear-gradient(135deg, #0B4F6C 0%, #01BAEF 100%)',
             boxShadow: '0 8px 24px rgba(1, 186, 239, 0.4)',
