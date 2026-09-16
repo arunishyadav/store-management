@@ -34,28 +34,28 @@ public class StockEntryController {
         return ResponseEntity.ok(stockEntryService.createOrUpdateEntry(entry));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:[0-9a-fA-F-]{36}}")
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STORE_INCHARGE')")
     public ResponseEntity<StockEntry> updateEntry(@PathVariable UUID id, @RequestBody StockEntry entry) {
         entry.setId(id);
         return ResponseEntity.ok(stockEntryService.createOrUpdateEntry(entry));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:[0-9a-fA-F-]{36}}")
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STORE_INCHARGE')")
     public ResponseEntity<Void> deleteEntry(@PathVariable UUID id) {
         stockEntryService.deleteEntry(id);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/recalculate-all")
-    public ResponseEntity<String> recalculateAllGet() {
+    @GetMapping("/recalculate")
+    public ResponseEntity<String> recalculateGet() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Recalculation complete");
     }
 
-    @PostMapping("/recalculate-all")
-    public ResponseEntity<String> recalculateAllPost() {
+    @PostMapping("/recalculate")
+    public ResponseEntity<String> recalculatePost() {
         stockEntryService.recalculateAllStockEntries();
         return ResponseEntity.ok("Recalculation complete");
     }
