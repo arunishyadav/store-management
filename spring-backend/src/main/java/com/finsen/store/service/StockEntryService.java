@@ -298,13 +298,12 @@ public class StockEntryService {
     }
 
     private String normalizeMaterialKey(String code, String name) {
-        String s = ((code != null ? code : "") + "_" + (name != null ? name : "")).toLowerCase();
-        s = s.replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel");
-        s = s.replaceAll("[^a-z0-9]", "");
-        if (s.isEmpty() && name != null) {
-            s = name.toLowerCase().replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "");
-        }
-        return s;
+        String c = code != null ? code.trim().toLowerCase() : "";
+        String n = name != null ? name.trim().toLowerCase() : "";
+        c = c.replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
+        n = n.replace("bound", "bond").replace("glinder", "grinder").replace("while", "wheel").replaceAll("[^a-z0-9]", "").replaceAll("\\d{6,8}$", "");
+        if (!c.isEmpty()) return c;
+        return n;
     }
 
     @Transactional
