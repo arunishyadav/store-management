@@ -238,9 +238,14 @@ public class StockEntryService {
         for (StockEntry e : entries) {
             double out = e.getOutgoingQuantity() != null ? e.getOutgoingQuantity() : 0.0;
             double arr = e.getArrivalQuantity() != null ? e.getArrivalQuantity() : 0.0;
-            System.out.println("   RECALC_ROW: ID=" + e.getId() + " | arr=" + arr + " | out=" + out);
 
-            if (arr > 0.0 && out == 0.0) {
+            if (out > 0.0 && arr > 0.0) {
+                e.setArrivalQuantity(0.0);
+                arr = 0.0;
+                stockEntryRepository.save(e);
+            }
+
+            if (arr > 0.0) {
                 String key = e.getId() != null ? e.getId().toString() : (e.getArrivalDate() + "_" + e.getArrivalTime() + "_" + arr);
                 arrivalBatches.put(key, arr);
             }
