@@ -153,8 +153,14 @@ public class StockEntryService {
         logger.info(">>> CREATE_OR_UPDATE_ENTRY CALLED: mat={} | out={} | arr={}", material.getId(), outInput, arrInput);
         if (outInput > 0.0) {
             entry.setArrivalQuantity(0.0);
+            if (entry.getIssueTime() == null) {
+                entry.setIssueTime(java.time.LocalTime.now());
+            }
         } else if (arrInput > 0.0) {
             entry.setOutgoingQuantity(0.0);
+            if (entry.getArrivalTime() == null) {
+                entry.setArrivalTime(java.time.LocalTime.now());
+            }
         }
 
         entry.setMaterial(material);
@@ -343,6 +349,11 @@ public class StockEntryService {
     @Transactional
     public void recalculateAllStockEntries() {
         logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
+        try {
+            deduplicateMaterials();
+        } catch (Exception e) {
+            logger.warn("deduplicateMaterials warning: {}", e.getMessage());
+        }
         List<Material> materials = materialRepository.findAll();
         logger.info("Total materials found in DB: {}", materials.size());
         for (Material m : materials) {
@@ -355,5 +366,6 @@ public class StockEntryService {
                 }
             }
         }
+        logger.info("--- STARTUP STOCK RECALCULATION COMPLETE ---");
     }
 }

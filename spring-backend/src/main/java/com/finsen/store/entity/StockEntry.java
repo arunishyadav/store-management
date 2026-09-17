@@ -34,6 +34,9 @@ public class StockEntry {
     @Column(name = "issue_date")
     private LocalDate issueDate;
 
+    @Column(name = "issue_time")
+    private LocalTime issueTime;
+
     @Column(name = "issued_by")
     private String issuedBy;
 
@@ -82,6 +85,8 @@ public class StockEntry {
     public void setOutgoingQuantity(Double outgoingQuantity) { this.outgoingQuantity = outgoingQuantity; }
     public LocalDate getIssueDate() { return issueDate; }
     public void setIssueDate(LocalDate issueDate) { this.issueDate = issueDate; }
+    public LocalTime getIssueTime() { return issueTime; }
+    public void setIssueTime(LocalTime issueTime) { this.issueTime = issueTime; }
     public String getIssuedBy() { return issuedBy; }
     public void setIssuedBy(String issuedBy) { this.issuedBy = issuedBy; }
     public String getStoreInchargeName() { return storeInchargeName; }

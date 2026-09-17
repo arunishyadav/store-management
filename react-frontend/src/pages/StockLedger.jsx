@@ -673,6 +673,7 @@ export default function StockLedger() {
       arrivalDate: formatDate(updatedRow.arrivalDate),
       arrivalTime: formatTime(updatedRow.arrivalTime),
       issueDate: formatDate(updatedRow.issueDate),
+      issueTime: formatTime(updatedRow.issueTime),
       location: { id: locationId },
       material: finalMaterialId ? { id: finalMaterialId } : null
     };
@@ -834,6 +835,7 @@ export default function StockLedger() {
     { field: 'issueDate', headerName: 'Issue Date', type: 'date', width: 130, editable: true,
       valueGetter: (value) => value ? new Date(value) : null
     },
+    { field: 'issueTime', headerName: 'Issue Time (HH:MM)', width: 130, editable: true },
     { field: 'issuedBy', headerName: 'Issued By', width: 150, editable: true },
     { field: 'storeInchargeName', headerName: 'stInCh Name', width: 150, editable: true },
     { 
