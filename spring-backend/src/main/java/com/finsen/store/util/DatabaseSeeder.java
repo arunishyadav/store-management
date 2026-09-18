@@ -182,40 +182,60 @@ public class DatabaseSeeder implements CommandLineRunner {
         }
 
         // Always ensure Master Super Admin accounts exist in Database with SUPER_ADMIN role (ALL STATES)
-        userRepository.findByUserId("@finsen-admin").ifPresentOrElse(u -> {
-            u.setRole(Role.SUPER_ADMIN);
-            u.setLocation(null);
-            userRepository.save(u);
-        }, () -> {
-            userRepository.save(new User(null, "@finsen-admin", "admin@finsen.com", passwordEncoder.encode("7Finsenxyz#"), "7Finsenxyz#", "Finsen Admin", Role.SUPER_ADMIN, null, true));
-        });
+        try {
+            userRepository.findByUserId("@finsen-admin").ifPresentOrElse(u -> {
+                u.setRole(Role.SUPER_ADMIN);
+                u.setLocation(null);
+                userRepository.save(u);
+            }, () -> {
+                if (userRepository.findByEmail("admin2@finsen.com").isEmpty()) {
+                    userRepository.save(new User(null, "@finsen-admin", "admin2@finsen.com", passwordEncoder.encode("7Finsenxyz#"), "7Finsenxyz#", "Finsen Admin", Role.SUPER_ADMIN, null, true));
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Seeding @finsen-admin warning: " + e.getMessage());
+        }
 
-        userRepository.findByUserId("admin").ifPresentOrElse(u -> {
-            u.setRole(Role.SUPER_ADMIN);
-            u.setLocation(null);
-            userRepository.save(u);
-        }, () -> {
-            userRepository.save(new User(null, "admin", "admin@finsen.com", passwordEncoder.encode("admin123"), "admin123", "Super Admin", Role.SUPER_ADMIN, null, true));
-        });
+        try {
+            userRepository.findByUserId("admin").ifPresentOrElse(u -> {
+                u.setRole(Role.SUPER_ADMIN);
+                u.setLocation(null);
+                userRepository.save(u);
+            }, () -> {
+                if (userRepository.findByEmail("admin@finsen.com").isEmpty()) {
+                    userRepository.save(new User(null, "admin", "admin@finsen.com", passwordEncoder.encode("admin123"), "admin123", "Super Admin", Role.SUPER_ADMIN, null, true));
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Seeding admin warning: " + e.getMessage());
+        }
 
         // Always update Narayan@321 to STORE_INCHARGE assigned to Rajasthan
-        Location raj = locationRepository.findAll().stream().filter(l -> l.getName().equalsIgnoreCase("Rajasthan")).findFirst().orElse(null);
-        if (raj != null) {
-            userRepository.findByUserId("Narayan@321").ifPresentOrElse(u -> {
-                u.setRole(Role.STORE_INCHARGE);
-                u.setLocation(raj);
-                userRepository.save(u);
-            }, () -> {
-                userRepository.save(new User(null, "Narayan@321", "narayan@finsen.com", passwordEncoder.encode("Narayan@321"), "Narayan@321", "Narayan Incharge", Role.STORE_INCHARGE, raj, true));
-            });
+        try {
+            Location raj = locationRepository.findAll().stream().filter(l -> l.getName().equalsIgnoreCase("Rajasthan")).findFirst().orElse(null);
+            if (raj != null) {
+                userRepository.findByUserId("Narayan@321").ifPresentOrElse(u -> {
+                    u.setRole(Role.STORE_INCHARGE);
+                    u.setLocation(raj);
+                    userRepository.save(u);
+                }, () -> {
+                    if (userRepository.findByEmail("narayan@finsen.com").isEmpty()) {
+                        userRepository.save(new User(null, "Narayan@321", "narayan@finsen.com", passwordEncoder.encode("Narayan@321"), "Narayan@321", "Narayan Incharge", Role.STORE_INCHARGE, raj, true));
+                    }
+                });
 
-            userRepository.findByUserId("narayan@321").ifPresentOrElse(u -> {
-                u.setRole(Role.STORE_INCHARGE);
-                u.setLocation(raj);
-                userRepository.save(u);
-            }, () -> {
-                userRepository.save(new User(null, "narayan@321", "narayan@finsen.com", passwordEncoder.encode("Narayan@321"), "Narayan@321", "Narayan Incharge", Role.STORE_INCHARGE, raj, true));
-            });
+                userRepository.findByUserId("narayan@321").ifPresentOrElse(u -> {
+                    u.setRole(Role.STORE_INCHARGE);
+                    u.setLocation(raj);
+                    userRepository.save(u);
+                }, () -> {
+                    if (userRepository.findByEmail("narayan2@finsen.com").isEmpty()) {
+                        userRepository.save(new User(null, "narayan@321", "narayan2@finsen.com", passwordEncoder.encode("Narayan@321"), "Narayan@321", "Narayan Incharge", Role.STORE_INCHARGE, raj, true));
+                    }
+                });
+            }
+        } catch (Exception e) {
+            System.err.println("Seeding Narayan warning: " + e.getMessage());
         }
 
         // Clean up any old auto-provisioned test user accounts in database

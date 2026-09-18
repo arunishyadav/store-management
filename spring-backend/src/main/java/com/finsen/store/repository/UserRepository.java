@@ -13,6 +13,7 @@ import java.util.List;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUserId(String userId);
+    Optional<User> findByEmail(String email);
     List<User> findByRole(Role role);
     List<User> findByLocationId(UUID locationId);
 }
