@@ -276,7 +276,6 @@ public class StockEntryService {
                 changed = true;
             }
         }
-        stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
         if (changed && entityManager != null) {
             try {
                 entityManager.flush();
@@ -323,15 +322,16 @@ public class StockEntryService {
                     Material master = masterMap.get(normKey);
                     logger.info("Merging duplicate material {} ({}) into master {} ({})", m.getId(), m.getName(), master.getId(), master.getName());
                     try {
-                        entityManager.createNativeQuery("UPDATE stock_entries SET material_id = :masterId WHERE material_id = :dupId")
-                                     .setParameter("masterId", master.getId())
-                                     .setParameter("dupId", m.getId())
-                                     .executeUpdate();
-                        entityManager.createNativeQuery("DELETE FROM materials WHERE id = :dupId")
-                                     .setParameter("dupId", m.getId())
-                                     .executeUpdate();
+                        List<StockEntry> dupEntries = stockEntryRepository.findByMaterialId(m.getId());
+                        if (dupEntries != null && !dupEntries.isEmpty()) {
+                            for (StockEntry se : dupEntries) {
+                                se.setMaterial(master);
+                                stockEntryRepository.save(se);
+                            }
+                        }
+                        materialRepository.delete(m);
                     } catch (Exception e) {
-                        logger.warn("Native SQL merge/delete duplicate material {} failed: {}", m.getId(), e.getMessage());
+                        logger.warn("JPA merge/delete duplicate material {} failed: {}", m.getId(), e.getMessage());
                     }
                 }
             }
