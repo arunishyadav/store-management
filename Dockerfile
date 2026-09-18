@@ -1,6 +1,8 @@
 # Stage 1: Build React Frontend
 FROM node:20-alpine AS build-frontend
 WORKDIR /app/frontend
+ARG CACHEBURST=1
+RUN echo "Building frontend version $CACHEBURST"
 COPY react-frontend/package*.json ./
 RUN npm install
 COPY react-frontend/ ./
