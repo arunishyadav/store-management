@@ -106,7 +106,7 @@ const Login = () => {
       if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else if (err.code === 'ERR_NETWORK' || !err.response || err.response.status === 502 || err.response.status === 503) {
-        setError('Unable to connect to backend server. Please make sure spring-backend is running on http://localhost:8080');
+        setError('Unable to connect to backend server. Please check your network or try again in a few seconds.');
       } else {
         setError('Login failed. Invalid User ID or Password.');
       }

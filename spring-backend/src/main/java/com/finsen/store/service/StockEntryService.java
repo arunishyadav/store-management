@@ -44,16 +44,7 @@ public class StockEntryService {
 
     @jakarta.annotation.PostConstruct
     public void init() {
-        try {
-            if (transactionTemplate != null) {
-                transactionTemplate.execute(status -> {
-                    recalculateAllStockEntries();
-                    return null;
-                });
-            }
-        } catch (Exception e) {
-            logger.error("Error during @PostConstruct recalculateAllStockEntries: {}", e.getMessage(), e);
-        }
+        // PostConstruct skipped to avoid running recalculation before DB seeding
     }
 
     @Transactional(readOnly = true)
@@ -274,14 +265,19 @@ public class StockEntryService {
         String universalAvailable = universalBalance > 0 ? "YES" : "NO";
         System.out.println("   RECALC_RESULT: totalArr=" + totalArrival + " | totalOut=" + totalOutgoing + " | universalBalance=" + universalBalance);
 
+        boolean changed = false;
         for (StockEntry e : entries) {
-            e.setTotalAvailableQty(universalBalance);
-            e.setAvailableInStore(universalAvailable);
-            stockEntryRepository.save(e);
+            Double curQty = e.getTotalAvailableQty();
+            String curAvail = e.getAvailableInStore();
+            if (curQty == null || Math.abs(curQty - universalBalance) > 0.0001 || !universalAvailable.equals(curAvail)) {
+                e.setTotalAvailableQty(universalBalance);
+                e.setAvailableInStore(universalAvailable);
+                stockEntryRepository.save(e);
+                changed = true;
+            }
         }
-        stockEntryRepository.flush();
         stockEntryRepository.updateMaterialStockBalance(materialId, universalBalance, universalAvailable);
-        if (entityManager != null) {
+        if (changed && entityManager != null) {
             try {
                 entityManager.flush();
             } catch (Exception ignored) {}
