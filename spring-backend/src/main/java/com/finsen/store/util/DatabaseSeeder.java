@@ -45,7 +45,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         try {
-            if (locationRepository.count() == 0) {
+            if (locationRepository.count() < 28) {
             // Add Locations (28 States of India)
             String[] indianStates = {
                 "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", 
