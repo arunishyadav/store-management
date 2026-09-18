@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, Chip, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete, Card, CardContent, Grid, Divider, ToggleButton, ToggleButtonGroup, InputAdornment } from '@mui/material';
+import { Box, Typography, Button, Paper, Chip, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete, Card, CardContent, Grid, Divider, ToggleButton, ToggleButtonGroup, InputAdornment, Tooltip } from '@mui/material';
 import { DataGrid, GridRowModes, GridToolbar, GridActionsCellItem } from '@mui/x-data-grid';
 import { Add as AddIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Save as SaveIcon, Close as CancelIcon, Search as SearchIcon, Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -19,12 +19,13 @@ const Materials = () => {
   const currentUser = useAuthStore(state => state.user);
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [lastUsedDate, setLastUsedDate] = useState(todayStr);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [open, setOpen] = useState(false);
   const [rawStockEntries, setRawStockEntries] = useState([]);
   const [newMat, setNewMat] = useState({ 
-    name: '', code: '', category: '', 
-    arrivalQuantity: '', arrivalDate: '', arrivalTime: '', broughtBy: '' 
+    name: '', code: '', category: 'Hardware', 
+    arrivalQuantity: '', arrivalDate: todayStr, arrivalTime: '', broughtBy: '' 
   });
 
   useEffect(() => {
@@ -206,12 +207,17 @@ const Materials = () => {
              return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${parts[2].padStart(2, '0')}`;
           };
           
+          const savedArrivalDate = newMat.arrivalDate || lastUsedDate || selectedDate || todayStr;
+          if (newMat.arrivalDate) {
+              setLastUsedDate(newMat.arrivalDate);
+          }
+
           const payload = {
             material: { id: targetMaterialId },
             materialCode: trimmedCode,
             materialName: trimmedName,
             arrivalQuantity: parseFloat(newMat.arrivalQuantity || 0),
-            arrivalDate: newMat.arrivalDate || null,
+            arrivalDate: savedArrivalDate,
             arrivalTime: formatTime(newMat.arrivalTime),
             broughtBy: newMat.broughtBy || '',
             outgoingQuantity: 0,
@@ -225,7 +231,7 @@ const Materials = () => {
 
           await api.post('/api/v1/stock-entries', payload);
 
-          setNewMat({ name: '', code: '', category: 'Hardware', arrivalQuantity: '', arrivalDate: todayStr, arrivalTime: '', broughtBy: '' });
+          setNewMat({ name: '', code: '', category: 'Hardware', arrivalQuantity: '', arrivalDate: savedArrivalDate, arrivalTime: '', broughtBy: '' });
           fetchData();
           setOpen(false);
       } catch (error) {
@@ -300,17 +306,44 @@ const Materials = () => {
   };
 
   const columns = [
-    { field: 'materialCode', headerName: 'Item Code', width: 130, editable: true },
-    { field: 'name', headerName: 'Item Name', flex: 1, minWidth: 200, editable: true },
-    { field: 'category', headerName: 'Category', width: 130, editable: true },
-    { field: 'arrivalQuantity', headerName: 'Quantity', type: 'number', width: 110, editable: false }, // Calculated
-    { field: 'arrivalDate', headerName: 'Arrival Date & Time', width: 180, editable: false }, // Calculated
-    { field: 'laneWalaName', headerName: 'Lane Wala Ka Name', width: 160, editable: false }, // Calculated
-    { field: 'nowQuantity', headerName: 'Now Quantity', type: 'number', width: 120, editable: false }, // Calculated
+    { field: 'materialCode', headerName: 'Item Code', minWidth: 120, flex: 1, editable: true },
+    { 
+      field: 'name', 
+      headerName: 'Item Name', 
+      minWidth: 200, 
+      flex: 2, 
+      editable: true,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.84rem' }}>
+            {params.value}
+          </Typography>
+        </Tooltip>
+      )
+    },
+    { field: 'category', headerName: 'Category', minWidth: 120, flex: 1, editable: true },
+    { field: 'arrivalQuantity', headerName: 'Quantity', type: 'number', minWidth: 100, flex: 0.8, editable: false },
+    { field: 'arrivalDate', headerName: 'Arrival Date & Time', minWidth: 170, flex: 1.3, editable: false },
+    { 
+      field: 'laneWalaName', 
+      headerName: 'Lane Wala Ka Name', 
+      minWidth: 150, 
+      flex: 1.2, 
+      editable: false,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.84rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
+    },
+    { field: 'nowQuantity', headerName: 'Now Quantity', type: 'number', minWidth: 110, flex: 0.9, editable: false },
     {
       field: 'availableInStore',
       headerName: 'Available In Store',
-      width: 140,
+      minWidth: 140,
+      flex: 1.1,
       editable: false,
       renderCell: (params) => {
         let color = params.value === 'YES' ? 'success' : 'error';

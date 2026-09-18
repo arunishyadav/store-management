@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Button, Paper, CircularProgress, Chip, Autocomplete, TextField, InputAdornment, Card, CardContent, Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Typography, Button, Paper, CircularProgress, Chip, Autocomplete, TextField, InputAdornment, Card, CardContent, Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
 import { DataGrid, GridRowModes, GridToolbar, GridToolbarContainer, GridActionsCellItem, GridRowEditStopReasons, useGridApiContext } from '@mui/x-data-grid';
 import { Add as AddIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Save as SaveIcon, Close as CancelIcon, Search as SearchIcon, Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -362,10 +362,10 @@ function NameEditCell(props) {
 }
 
 function EditToolbar(props) {
-  const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr } = props;
+  const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } = props;
   const handleClick = () => {
     const id = uuidv4();
-    const newArrivalDate = dateFilter || todayStr;
+    const newArrivalDate = lastUsedArrivalDate || dateFilter || todayStr;
     setRows((oldRows) => [{ ...initialRow, id, isNew: true, arrivalDate: newArrivalDate }, ...oldRows]);
     setRowModesModel((oldModel) => ({
       ...oldModel,
@@ -393,7 +393,7 @@ function EditToolbar(props) {
             placeholder="Search by Code, Name, Issued By, Bill No, Incharge, Brought By..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ minWidth: { xs: '100%', sm: '320px' }, backgroundColor: '#ffffff' }}
+            sx={{ minWidth: { xs: '100%', sm: '320px' }, backgroundColor: 'background.paper' }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -436,7 +436,7 @@ function EditToolbar(props) {
       </Box>
 
       {/* Date Filters Bar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', pt: 0.5, borderTop: '1px solid #f0f0f0' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', pt: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Sheet Date:</Typography>
               <input 
@@ -444,7 +444,11 @@ function EditToolbar(props) {
                   value={dateFilter} 
                   onChange={(e) => {
                     setDateFilter(e.target.value);
-                    if (e.target.value) { setStartDate(''); setEndDate(''); }
+                    if (e.target.value) { 
+                      setLastUsedArrivalDate(e.target.value);
+                      setStartDate(''); 
+                      setEndDate(''); 
+                    }
                   }} 
                   style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '150px' }}
               />
@@ -495,6 +499,8 @@ export default function StockLedger() {
   const [materials, setMaterials] = useState([]);
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFilter, setDateFilter] = useState(''); // Default to All Data so all historical entries show up immediately
+  const [lastUsedArrivalDate, setLastUsedArrivalDate] = useState('');
+  const [lastUsedIssueDate, setLastUsedIssueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const locationId = useAuthStore(state => state.selectedLocation?.id);
   const currentUser = useAuthStore(state => state.user);
@@ -650,6 +656,16 @@ export default function StockLedger() {
 
     const formatDate = (dateVal) => {
        if (!dateVal) return null;
+       if (typeof dateVal === 'string') {
+          const match = dateVal.match(/^\d{4}-\d{2}-\d{2}/);
+          if (match) return match[0];
+       }
+       if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+          const year = dateVal.getFullYear();
+          const month = String(dateVal.getMonth() + 1).padStart(2, '0');
+          const day = String(dateVal.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+       }
        const d = new Date(dateVal);
        if (isNaN(d.getTime())) return null;
        const year = d.getFullYear();
@@ -677,6 +693,13 @@ export default function StockLedger() {
       location: { id: locationId },
       material: finalMaterialId ? { id: finalMaterialId } : null
     };
+
+    if (payload.arrivalDate) {
+       setLastUsedArrivalDate(payload.arrivalDate);
+    }
+    if (payload.issueDate) {
+       setLastUsedIssueDate(payload.issueDate);
+    }
 
     if (!payload.materialCode) {
         throw new Error("Please enter or select an Item Code");
@@ -712,11 +735,25 @@ export default function StockLedger() {
   };
 
   const columns = [
-    { field: 'billNumber', headerName: 'bill number', width: 130, editable: true },
+    { 
+      field: 'billNumber', 
+      headerName: 'Bill Number', 
+      width: 120, 
+      flex: 0.8, 
+      editable: true,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
+    },
     {
       field: 'entryType',
       headerName: 'Entry Type',
-      width: 140,
+      width: 130,
+      flex: 0.9,
       editable: false,
       renderCell: (params) => {
         const isArrival = parseFloat(params.row.arrivalQuantity || 0) > 0 && parseFloat(params.row.outgoingQuantity || 0) === 0;
@@ -734,27 +771,44 @@ export default function StockLedger() {
     { 
       field: 'materialCode', 
       headerName: 'Search Item (Code/Name)', 
-      width: 250, 
+      width: 220, 
+      flex: 1.5, 
       editable: true,
       renderEditCell: (params) => <AutocompleteEditCell {...params} materials={materials} allBackendRows={rows} />,
       renderCell: (params) => {
           if (!params.value) return '';
           const mat = materials.find(m => m.materialCode === params.value);
-          return mat ? `${mat.materialCode} - ${mat.name}` : params.value;
+          const displayLabel = mat ? `${mat.materialCode} - ${mat.name}` : params.value;
+          return (
+            <Tooltip title={displayLabel} arrow placement="top-start">
+              <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                {displayLabel}
+              </Typography>
+            </Tooltip>
+          );
       }
     },
     { 
       field: 'materialName', 
-      headerName: 'name of product', 
-      width: 180, 
+      headerName: 'Name of Product', 
+      width: 160, 
+      flex: 1.2, 
       editable: true,
-      renderEditCell: (params) => <NameEditCell {...params} />
+      renderEditCell: (params) => <NameEditCell {...params} />,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
     },
     { 
       field: 'arrivalQuantity', 
       headerName: 'Arrival Qty', 
       type: 'number', 
-      width: 140, 
+      width: 110, 
+      flex: 0.8, 
       editable: true,
       valueGetter: (value, row) => {
         const arrVal = parseFloat(value || 0);
@@ -779,7 +833,7 @@ export default function StockLedger() {
           return (
             <Tooltip title="Total stock arrived for this material across all arrival batches">
               <Box display="flex" alignItems="center" gap={0.5}>
-                <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                <Typography variant="body2" fontWeight="bold" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
                   {totalArr}
                 </Typography>
                 <Chip label="Total" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
@@ -787,18 +841,36 @@ export default function StockLedger() {
             </Tooltip>
           );
         }
-        return <Typography variant="body2" color="text.disabled">0</Typography>;
+        return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>0</Typography>;
       }
     },
-    { field: 'arrivalDate', headerName: 'Store Arrival Date', type: 'date', width: 130, editable: true,
-      valueGetter: (value) => value ? new Date(value) : null
+    { field: 'arrivalDate', headerName: 'Store Arrival Date', type: 'date', width: 130, flex: 0.9, editable: true,
+      valueGetter: (value) => {
+        if (!value) return null;
+        if (typeof value === 'string') {
+          const parts = value.substring(0, 10).split('-');
+          if (parts.length === 3) {
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          }
+        }
+        return new Date(value);
+      }
     },
-    { field: 'arrivalTime', headerName: 'Arrival Time (HH:MM)', width: 130, editable: true },
-    { field: 'broughtBy', headerName: 'Lane Wala Name', width: 150, editable: true },
+    { field: 'arrivalTime', headerName: 'Arrival Time (HH:MM)', width: 120, flex: 0.8, editable: true },
+    { field: 'broughtBy', headerName: 'Lane Wala Name', width: 130, flex: 1, editable: true,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
+    },
     { 
       field: 'availableInStore', 
       headerName: 'Avlabel In Store', 
       width: 130, 
+      flex: 0.9, 
       editable: false,
       renderCell: (params) => (
         <Chip label={params.value} color={params.value === 'YES' ? 'success' : 'error'} variant="outlined" size="small" />
@@ -815,7 +887,8 @@ export default function StockLedger() {
       field: 'outgoingQuantity', 
       headerName: 'Outgoing Quantity', 
       type: 'number', 
-      width: 140, 
+      width: 120, 
+      flex: 0.8, 
       editable: true,
       renderCell: (params) => {
         const outVal = parseFloat(params.value || 0);
@@ -829,20 +902,46 @@ export default function StockLedger() {
             />
           );
         }
-        return <Typography variant="body2" color="text.disabled">-</Typography>;
+        return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>;
       }
     },
-    { field: 'issueDate', headerName: 'Issue Date', type: 'date', width: 130, editable: true,
-      valueGetter: (value) => value ? new Date(value) : null
+    { field: 'issueDate', headerName: 'Issue Date', type: 'date', width: 120, flex: 0.9, editable: true,
+      valueGetter: (value) => {
+        if (!value) return null;
+        if (typeof value === 'string') {
+          const parts = value.substring(0, 10).split('-');
+          if (parts.length === 3) {
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          }
+        }
+        return new Date(value);
+      }
     },
-    { field: 'issueTime', headerName: 'Issue Time (HH:MM)', width: 130, editable: true },
-    { field: 'issuedBy', headerName: 'Issued By', width: 150, editable: true },
-    { field: 'storeInchargeName', headerName: 'stInCh Name', width: 150, editable: true },
+    { field: 'issueTime', headerName: 'Issue Time (HH:MM)', width: 120, flex: 0.8, editable: true },
+    { field: 'issuedBy', headerName: 'Issued By', width: 130, flex: 1, editable: true,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
+    },
+    { field: 'storeInchargeName', headerName: 'stInCh Name', width: 130, flex: 1, editable: true,
+      renderCell: (params) => (
+        <Tooltip title={params.value || ''} arrow placement="top-start">
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+            {params.value || '-'}
+          </Typography>
+        </Tooltip>
+      )
+    },
     { 
       field: 'totalAvailableQty', 
       headerName: 'Total Avl Q', 
       type: 'number', 
-      width: 110,
+      width: 100,
+      flex: 0.8,
       valueGetter: (value, row) => {
           const code = row?.materialCode ? String(row.materialCode).trim().toLowerCase() : '';
           if (code && stockStateMap[code]) {
@@ -851,9 +950,9 @@ export default function StockLedger() {
           return calculateStockState(row, rows, materials).runningBalance;
       }
     },
-    { field: 'productLength', headerName: 'Product Length', width: 130, editable: true },
-    { field: 'innerDiameter', headerName: 'Inner Diameter', width: 130, editable: true },
-    { field: 'kg', headerName: 'kg', width: 100, editable: true }
+    { field: 'productLength', headerName: 'Product Length', width: 110, flex: 0.8, editable: true },
+    { field: 'innerDiameter', headerName: 'Inner Diameter', width: 110, flex: 0.8, editable: true },
+    { field: 'kg', headerName: 'kg', width: 80, flex: 0.6, editable: true }
   ];
   if (currentUser?.role !== 'USER') {
     columns.push({
@@ -893,7 +992,7 @@ export default function StockLedger() {
     setMobileEditingRow({
       ...initialRow,
       id: uuidv4(),
-      arrivalDate: dateFilter || todayStr,
+      arrivalDate: lastUsedArrivalDate || dateFilter || todayStr,
       isNew: true
     });
     setMobileEditOpen(true);
@@ -928,7 +1027,7 @@ export default function StockLedger() {
 
       if (lastEntry) {
         updated.arrivalQuantity = lastEntry.arrivalQuantity || prev?.arrivalQuantity || '';
-        updated.arrivalDate = lastEntry.arrivalDate || prev?.arrivalDate || (dateFilter || todayStr);
+        updated.arrivalDate = lastEntry.arrivalDate || prev?.arrivalDate || (lastUsedArrivalDate || dateFilter || todayStr);
         updated.arrivalTime = lastEntry.arrivalTime || prev?.arrivalTime || '';
         updated.broughtBy = lastEntry.broughtBy || prev?.broughtBy || '';
         updated.storeInchargeName = lastEntry.storeInchargeName || prev?.storeInchargeName || '';
@@ -980,6 +1079,13 @@ export default function StockLedger() {
         kg: mobileEditingRow.kg || '',
         location: { id: locationId }
       };
+
+      if (payload.arrivalDate) {
+        setLastUsedArrivalDate(payload.arrivalDate);
+      }
+      if (payload.issueDate) {
+        setLastUsedIssueDate(payload.issueDate);
+      }
 
       await api.post('/api/v1/stock-entries', payload);
       setMobileEditOpen(false);
@@ -1151,7 +1257,7 @@ export default function StockLedger() {
                 columns={columns}
                 editMode="row"
                 rowModesModel={rowModesModel}
-                density="comfortable"
+                density="compact"
                 onRowModesModelChange={handleRowModesModelChange}
                 onRowEditStop={handleRowEditStop}
                 processRowUpdate={processRowUpdate}
@@ -1163,10 +1269,20 @@ export default function StockLedger() {
                 }}
                 pageSizeOptions={[25, 50, 100]}
                 slots={{ toolbar: EditToolbar }}
-                slotProps={{ toolbar: { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr } }}
+                slotProps={{ toolbar: { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } }}
                 sx={{
                    border: 'none',
-                   '& .MuiDataGrid-row:nth-of-type(even)': { backgroundColor: '#f8fafc' }
+                   '& .MuiDataGrid-cell': {
+                      px: 1,
+                      fontSize: '0.82rem'
+                   },
+                   '& .MuiDataGrid-columnHeader': {
+                      fontWeight: 'bold',
+                      fontSize: '0.82rem'
+                   },
+                   '& .MuiDataGrid-row:nth-of-type(even)': {
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc'
+                   }
                 }}
               />
             </Box>

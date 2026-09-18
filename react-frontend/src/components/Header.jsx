@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Typography, Box, Menu, MenuItem, Button, IconButton, Chip } from '@mui/material';
-import { AccountCircle, Menu as MenuIcon, LocationOn } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, Box, Menu, MenuItem, Button, IconButton, Chip, Tooltip } from '@mui/material';
+import { AccountCircle, Menu as MenuIcon, LocationOn, DarkMode, LightMode } from '@mui/icons-material';
 import useAuthStore from '../store/authStore';
+import useThemeStore from '../store/themeStore';
 import { useNavigate } from 'react-router-dom';
 import axios from '../services/api';
 
 const Header = ({ onDrawerToggle }) => {
   const { user, logout, updateLocation, selectedLocation } = useAuthStore();
+  const { mode, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const [locations, setLocations] = useState([]);
@@ -16,7 +18,6 @@ const Header = ({ onDrawerToggle }) => {
       axios.get('/api/v1/locations')
         .then(res => {
           setLocations(res.data);
-          // Auto-select first location if none selected
           if (!selectedLocation && res.data.length > 0) {
             updateLocation(res.data[0]);
           }
@@ -46,19 +47,26 @@ const Header = ({ onDrawerToggle }) => {
   return (
     <AppBar position="fixed" sx={{ 
       zIndex: (theme) => theme.zIndex.drawer + 1, 
-      backgroundColor: 'white', 
+      backgroundColor: mode === 'dark' ? '#1E293B' : '#ffffff', 
       color: 'text.primary', 
-      boxShadow: '0 2px 10px rgba(0,0,0,0.05)' 
+      borderBottom: mode === 'dark' ? '1px solid #334155' : '1px solid #E2E8F0',
+      boxShadow: mode === 'dark' ? '0 2px 10px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.05)' 
     }}>
       <Toolbar>
-
         <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
           <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Inventory Management</Box>
           <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Finsen</Box>
         </Typography>
         
         {user && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 2 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1.5 } }}>
+            {/* Theme Toggle Button */}
+            <Tooltip title={mode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+              <IconButton onClick={toggleTheme} color="inherit" size="small" sx={{ p: 1, borderRadius: 2 }}>
+                {mode === 'dark' ? <LightMode sx={{ color: '#FACC15' }} /> : <DarkMode sx={{ color: '#1E293B' }} />}
+              </IconButton>
+            </Tooltip>
+
             {/* Prominent State Location Badge visible on ALL devices */}
             <Chip
               icon={<LocationOn sx={{ color: '#0284c7 !important' }} />}
@@ -67,8 +75,8 @@ const Header = ({ onDrawerToggle }) => {
               sx={{
                 fontWeight: 'bold',
                 fontSize: { xs: '0.75rem', sm: '0.85rem' },
-                backgroundColor: '#e0f2fe',
-                color: '#0369a1',
+                backgroundColor: mode === 'dark' ? '#0369a1' : '#e0f2fe',
+                color: mode === 'dark' ? '#f0f9ff' : '#0369a1',
                 border: '1.5px solid #0284c7',
                 px: 0.5,
                 py: 0.2,
@@ -79,7 +87,7 @@ const Header = ({ onDrawerToggle }) => {
             
             <Box>
               <Button onClick={handleMenu} color="inherit" sx={{ minWidth: 'auto', p: { xs: 0.5, sm: 1 }, textTransform: 'none' }}>
-                <AccountCircle sx={{ mr: 0.5, color: '#1e293b' }} />
+                <AccountCircle sx={{ mr: 0.5, color: mode === 'dark' ? '#38BDF8' : '#1e293b' }} />
                 <Box sx={{ textAlign: 'left' }}>
                   <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, lineHeight: 1.2 }}>
                     {user.name || user.fullName || user.user_id || 'User'}
@@ -123,4 +131,3 @@ const Header = ({ onDrawerToggle }) => {
 };
 
 export default Header;
-
