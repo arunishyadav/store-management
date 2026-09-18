@@ -238,18 +238,20 @@ public class DatabaseSeeder implements CommandLineRunner {
             System.err.println("Seeding Narayan warning: " + e.getMessage());
         }
 
-        // Clean up any old auto-provisioned test user accounts in database
-        List<String> validUserIds = List.of("@finsen-admin", "admin", "Narayan@321", "narayan@321", "arunish@321", "arunish@123", "@finsen-user", "storeadmin", "onlyview@123");
-        userRepository.findAll().stream()
-                .filter(u -> u.getUserId() != null && !validUserIds.contains(u.getUserId()))
-                .forEach(u -> {
-                    try {
-                        userRepository.delete(u);
-                    } catch (Exception e) {
-                        u.setActive(false);
-                        userRepository.save(u);
-                    }
-                });
+        // Clean up any old auto-provisioned test user accounts in database by deactivating them
+        try {
+            List<String> validUserIds = List.of("@finsen-admin", "admin", "Narayan@321", "narayan@321", "arunish@321", "arunish@123", "@finsen-user", "storeadmin", "onlyview@123");
+            userRepository.findAll().stream()
+                    .filter(u -> u.getUserId() != null && !validUserIds.contains(u.getUserId()))
+                    .forEach(u -> {
+                        if (u.isActive()) {
+                            u.setActive(false);
+                            userRepository.save(u);
+                        }
+                    });
+        } catch (Exception e) {
+            System.err.println("User deactivation warning: " + e.getMessage());
+        }
 
         // Always ensure Support Contacts exist
         if (supportContactRepository.count() == 0) {
