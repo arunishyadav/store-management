@@ -1,26 +1,13 @@
-# Stage 1: Build React Frontend
-FROM node:20-alpine AS build-frontend
-WORKDIR /app/frontend
-ARG CACHEBURST=1
-RUN echo "Building frontend version $CACHEBURST"
-COPY react-frontend/package*.json ./
-RUN npm install
-COPY react-frontend/ ./
-RUN npm run build
-
-# Stage 2: Build Spring Boot Backend
+# Stage 1: Build Spring Boot Backend
 FROM maven:3.9.6-eclipse-temurin-21-alpine AS build-backend
 WORKDIR /app/backend
 COPY spring-backend/pom.xml ./
 ARG CACHEBURST=1
 RUN echo "Building version $CACHEBURST"
 COPY spring-backend/src ./src
-# Copy the built React app into the Spring Boot static folder
-COPY --from=build-frontend /app/frontend/dist ./src/main/resources/static
-# Build the application
 RUN rm -rf target && mvn clean package -DskipTests
 
-# Stage 3: Run the application
+# Stage 2: Run the application
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build-backend /app/backend/target/app.jar app.jar
