@@ -43,9 +43,9 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     @Override
-    @Transactional
-    public void run(String... args) throws Exception {
-        if (locationRepository.count() == 0) {
+    public void run(String... args) {
+        try {
+            if (locationRepository.count() == 0) {
             // Add Locations (28 States of India)
             String[] indianStates = {
                 "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", 
@@ -243,6 +243,9 @@ public class DatabaseSeeder implements CommandLineRunner {
             stockEntryService.recalculateAllStockEntries();
         } catch (Exception e) {
             System.err.println("Seeder stock recalculation warning: " + e.getMessage());
+        }
+        } catch (Exception e) {
+            System.err.println("DatabaseSeeder exception caught safely: " + e.getMessage());
         }
     }
 
