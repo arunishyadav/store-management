@@ -315,10 +315,13 @@ function AutocompleteEditCell(props) {
     };
 
     if (targetEntry) {
-       const fieldsToCopy = ['billNumber', 'broughtBy', 'storeInchargeName', 'productLength', 'innerDiameter', 'kg'];
+       const fieldsToCopy = ['billNumber', 'broughtBy', 'storeInchargeName', 'productLength', 'innerDiameter', 'kg', 'arrivalDate', 'arrivalTime'];
        fieldsToCopy.forEach(f => {
           if (targetEntry[f] !== undefined && targetEntry[f] !== null) {
               let valToSet = targetEntry[f];
+              if (f === 'arrivalDate' && valToSet) {
+                  valToSet = String(valToSet).substring(0, 10);
+              }
               safeSet(f, valToSet);
               updateObj[f] = valToSet;
           }
@@ -404,8 +407,14 @@ function EditToolbar(props) {
   const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, isAllData, setIsAllData, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } = props;
   const handleClick = () => {
     const id = uuidv4();
-    const newArrivalDate = dateFilter || todayStr;
-    setRows((oldRows) => [{ ...initialRow, id, isNew: true, arrivalDate: newArrivalDate }, ...oldRows]);
+    const defaultDate = dateFilter || todayStr;
+    setRows((oldRows) => [{ 
+      ...initialRow, 
+      id, 
+      isNew: true, 
+      arrivalDate: '', 
+      issueDate: defaultDate 
+    }, ...oldRows]);
     setRowModesModel((oldModel) => ({
       ...oldModel,
       [id]: { mode: GridRowModes.Edit, fieldToFocus: 'billNumber' },
@@ -663,8 +672,21 @@ export default function StockLedger() {
     const updatedRow = { ...newRow, isNew: false };
     if (out > 0) {
         updatedRow.arrivalQuantity = 0;
+        // For an OUT entry, do NOT stamp arrivalDate with issueDate.
+        // It should either keep the material's original arrival date, or null.
+        if (updatedRow.arrivalDate === updatedRow.issueDate || !updatedRow.arrivalDate) {
+            const origArrival = (globalAllStockEntries || []).find(e => 
+               isSameMaterial(e, updatedRow, materials) && parseFloat(e.arrivalQuantity || 0) > 0
+            );
+            if (origArrival && origArrival.arrivalDate) {
+               updatedRow.arrivalDate = String(origArrival.arrivalDate).substring(0, 10);
+            } else {
+               updatedRow.arrivalDate = null;
+            }
+        }
     } else if (arr > 0) {
         updatedRow.outgoingQuantity = 0;
+        updatedRow.issueDate = null;
     }
 
     // Match material case-insensitively by ID, code, name, or cross-matching
@@ -1151,18 +1173,40 @@ export default function StockLedger() {
     }
 
     try {
+      let finalArrDate = mobileEditingRow.arrivalDate || null;
+      let finalArrQty = parseFloat(mobileEditingRow.arrivalQuantity || 0);
+      let finalOutQty = parseFloat(mobileEditingRow.outgoingQuantity || 0);
+      let finalIssDate = mobileEditingRow.issueDate || null;
+
+      if (finalOutQty > 0) {
+        finalArrQty = 0;
+        if (finalArrDate === finalIssDate || !finalArrDate) {
+           const origArrival = (globalAllStockEntries || []).find(e => 
+              isSameMaterial(e, rowWithMat, materials) && parseFloat(e.arrivalQuantity || 0) > 0
+           );
+           if (origArrival && origArrival.arrivalDate) {
+              finalArrDate = String(origArrival.arrivalDate).substring(0, 10);
+           } else {
+              finalArrDate = null;
+           }
+        }
+      } else if (finalArrQty > 0) {
+        finalOutQty = 0;
+        finalIssDate = null;
+      }
+
       const payload = {
         id: mobileEditingRow.id.startsWith('mat-') ? null : mobileEditingRow.id,
         billNumber: mobileEditingRow.billNumber || '',
         material: materialId ? { id: materialId } : null,
         materialCode: mobileEditingRow.materialCode,
         materialName: mobileEditingRow.materialName,
-        arrivalQuantity: parseFloat(mobileEditingRow.arrivalQuantity || 0),
-        arrivalDate: mobileEditingRow.arrivalDate || null,
+        arrivalQuantity: finalArrQty,
+        arrivalDate: finalArrDate,
         arrivalTime: mobileEditingRow.arrivalTime || null,
         broughtBy: mobileEditingRow.broughtBy || '',
-        outgoingQuantity: parseFloat(mobileEditingRow.outgoingQuantity || 0),
-        issueDate: mobileEditingRow.issueDate || null,
+        outgoingQuantity: finalOutQty,
+        issueDate: finalIssDate,
         issuedBy: mobileEditingRow.issuedBy || '',
         storeInchargeName: mobileEditingRow.storeInchargeName || '',
         productLength: mobileEditingRow.productLength || '',

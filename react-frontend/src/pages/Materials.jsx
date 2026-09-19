@@ -397,22 +397,22 @@ const Materials = () => {
       if (availabilityFilter === 'YES' && qty <= 0) return false;
       if (availabilityFilter === 'NO' && qty > 0) return false;
 
-      // 2. Date Filter / Date Range
+      // 2. Date Filter / Date Range (Arrivals only! Outgoing/Issues belong in Entry Book, not Materials)
       if (!isAllData) {
         if (startDate && endDate) {
-          const hasRangeActivity = r.matEntries.some(e => {
+          const hasRangeArrival = r.matEntries.some(e => {
             const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
-            const issD = e.issueDate ? String(e.issueDate).substring(0, 10) : '';
-            return (arrD && arrD >= startDate && arrD <= endDate) || (issD && issD >= startDate && issD <= endDate);
+            const arrQty = parseFloat(e.arrivalQuantity || 0);
+            return arrD && arrD >= startDate && arrD <= endDate && arrQty > 0;
           });
-          if (!hasRangeActivity) return false;
+          if (!hasRangeArrival) return false;
         } else if (selectedDate) {
-          const hasDateActivity = r.matEntries.some(e => {
+          const hasDateArrival = r.matEntries.some(e => {
             const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
-            const issD = e.issueDate ? String(e.issueDate).substring(0, 10) : '';
-            return arrD === selectedDate || issD === selectedDate;
+            const arrQty = parseFloat(e.arrivalQuantity || 0);
+            return arrD === selectedDate && arrQty > 0;
           });
-          if (!hasDateActivity) return false;
+          if (!hasDateArrival) return false;
         } else {
           return false;
         }
@@ -431,24 +431,38 @@ const Materials = () => {
 
       return true;
     }).map(r => {
-      // When a date is selected, display that date's grouped arrival quantity if arrivals occurred
+      // When a date is selected, display that date's grouped arrival quantity and arrival info
       if (!isAllData && (selectedDate || (startDate && endDate))) {
-        let dateEntries = r.matEntries;
+        let dateEntries = [];
         if (startDate && endDate) {
           dateEntries = r.matEntries.filter(e => {
             const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
-            return arrD >= startDate && arrD <= endDate;
+            const arrQty = parseFloat(e.arrivalQuantity || 0);
+            return arrD >= startDate && arrD <= endDate && arrQty > 0;
           });
         } else if (selectedDate) {
           dateEntries = r.matEntries.filter(e => {
             const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
-            return arrD === selectedDate;
+            const arrQty = parseFloat(e.arrivalQuantity || 0);
+            return arrD === selectedDate && arrQty > 0;
           });
         }
         const dateArrQty = calculateGroupedArrival(dateEntries);
+        
+        const sortedDateArrivals = [...dateEntries].sort((a, b) => new Date(b.arrivalDate) - new Date(a.arrivalDate));
+        const specificArrival = sortedDateArrivals.length > 0 ? sortedDateArrivals[0] : null;
+
+        const dateArrivalDateStr = specificArrival && specificArrival.arrivalDate ? String(specificArrival.arrivalDate).substring(0, 10) : r.rawArrivalDate;
+        const dateArrivalTimeStr = specificArrival && specificArrival.arrivalTime ? specificArrival.arrivalTime : '';
+        const dateArrivalDateTime = dateArrivalDateStr !== 'N/A' ? `${dateArrivalDateStr} ${dateArrivalTimeStr}`.trim() : r.arrivalDate;
+        const dateLaneWala = specificArrival ? (specificArrival.broughtBy || 'N/A') : r.laneWalaName;
+
         return {
           ...r,
-          arrivalQuantity: dateArrQty > 0 ? dateArrQty : r.totalArrival
+          arrivalQuantity: dateArrQty > 0 ? dateArrQty : r.totalArrival,
+          arrivalDate: dateArrivalDateTime,
+          rawArrivalDate: dateArrivalDateStr,
+          laneWalaName: dateLaneWala
         };
       }
       return r;
