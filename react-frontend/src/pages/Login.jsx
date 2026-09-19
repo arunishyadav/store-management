@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Card, CardContent, Typography, TextField, Button, CircularProgress, Alert, MenuItem, Select, FormControl, InputLabel, Autocomplete } from '@mui/material';
+import { 
+  Box, Card, CardContent, Typography, TextField, Button, CircularProgress, 
+  Alert, MenuItem, Select, FormControl, InputLabel, Autocomplete, IconButton, Tooltip 
+} from '@mui/material';
+import { Brightness4, Brightness7 } from '@mui/icons-material';
 import { keyframes } from '@emotion/react';
 import useAuthStore from '../store/authStore';
+import useThemeStore from '../store/themeStore';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -41,6 +46,8 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
+  const { mode, toggleTheme } = useThemeStore();
+  const isDark = mode === 'dark';
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -115,6 +122,66 @@ const Login = () => {
     }
   };
 
+  // Reusable styling for high contrast in both light and dark themes
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.85)' : '#FFFFFF',
+      color: isDark ? '#F8FAFC !important' : '#0F172A !important',
+      '& fieldset': {
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : '#CBD5E1',
+      },
+      '&:hover fieldset': {
+        borderColor: isDark ? '#38BDF8' : '#01BAEF',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: isDark ? '#38BDF8' : '#0B4F6C',
+        borderWidth: 2,
+      },
+    },
+    '& .MuiInputBase-input': {
+      color: isDark ? '#F8FAFC !important' : '#0F172A !important',
+      WebkitTextFillColor: isDark ? '#F8FAFC !important' : '#0F172A !important',
+      fontWeight: 500,
+    },
+    '& .MuiInputLabel-root': {
+      color: isDark ? '#94A3B8 !important' : '#475569 !important',
+      fontWeight: 500,
+    },
+    '& .MuiInputLabel-root.Mui-focused': {
+      color: isDark ? '#38BDF8 !important' : '#0B4F6C !important',
+      fontWeight: 600,
+    },
+    '& input:-webkit-autofill': {
+      WebkitBoxShadow: `0 0 0 100px ${isDark ? '#1E293B' : '#FFFFFF'} inset !important`,
+      WebkitTextFillColor: `${isDark ? '#F8FAFC' : '#0F172A'} !important`,
+    },
+  };
+
+  const selectSx = {
+    borderRadius: 2,
+    backgroundColor: isDark ? 'rgba(30, 41, 59, 0.85)' : '#FFFFFF',
+    color: isDark ? '#F8FAFC !important' : '#0F172A !important',
+    '& .MuiSelect-select': {
+      color: isDark ? '#F8FAFC !important' : '#0F172A !important',
+      WebkitTextFillColor: isDark ? '#F8FAFC !important' : '#0F172A !important',
+      fontWeight: 500,
+    },
+    '& .MuiSvgIcon-root': {
+      color: isDark ? '#94A3B8' : '#475569',
+    },
+    '& fieldset': {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : '#CBD5E1',
+    },
+    '&:hover fieldset': {
+      borderColor: isDark ? '#38BDF8' : '#01BAEF',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: isDark ? '#38BDF8' : '#0B4F6C',
+      borderWidth: 2,
+    },
+  };
+
   return (
     <Box
       sx={{
@@ -134,15 +201,35 @@ const Login = () => {
         sx={{
           maxWidth: 450,
           width: '100%',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(16px)',
-          borderRadius: 6,
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
+          position: 'relative',
+          background: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.96)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: 4,
+          boxShadow: isDark 
+            ? '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+            : '0 20px 50px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05)',
           animation: `${fadeIn} 0.8s ease-out forwards`,
           overflow: 'hidden'
         }}
       >
+        {/* Theme Toggle Button */}
+        <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
+          <Tooltip title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            <IconButton 
+              onClick={toggleTheme} 
+              sx={{ 
+                color: isDark ? '#38BDF8' : '#0B4F6C',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                '&:hover': {
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)'
+                }
+              }}
+            >
+              {isDark ? <Brightness7 /> : <Brightness4 />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+
         <CardContent sx={{ p: { xs: 3, sm: 5 } }}>
           <Box 
             display="flex" 
@@ -157,20 +244,46 @@ const Login = () => {
                  borderRadius: '50%', 
                  p: 1.5, 
                  mb: 2, 
+                 boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                  animation: `${pulseLogo} 3s ease-in-out infinite`
                }}
             >
                <img src="/logo.svg" alt="Finsen Ritter Logo" style={{ width: '70px', height: '70px' }} />
             </Box>
             
-            <Typography variant="h4" align="center" color="primary" sx={{ fontWeight: 800, letterSpacing: '0.5px' }}>
+            <Typography 
+              variant="h4" 
+              align="center" 
+              sx={{ 
+                fontWeight: 800, 
+                letterSpacing: '0.5px',
+                color: isDark ? '#38BDF8' : '#0B4F6C'
+              }}
+            >
               Finsen Ritter Limited
             </Typography>
-            <Typography variant="subtitle1" align="center" color="text.secondary" sx={{ fontWeight: 600, mb: 1, letterSpacing: '1px', textTransform: 'uppercase' }}>
+            <Typography 
+              variant="subtitle1" 
+              align="center" 
+              sx={{ 
+                fontWeight: 600, 
+                mb: 1, 
+                letterSpacing: '1px', 
+                textTransform: 'uppercase',
+                color: isDark ? '#94A3B8' : '#64748B'
+              }}
+            >
               Indore
             </Typography>
             
-            <Typography variant="body2" align="center" color="text.secondary" sx={{ opacity: 0.8 }}>
+            <Typography 
+              variant="body2" 
+              align="center" 
+              sx={{ 
+                color: isDark ? '#94A3B8' : '#64748B',
+                opacity: 0.9 
+              }}
+            >
               Enterprise Inventory & Store Management System
             </Typography>
           </Box>
@@ -186,7 +299,7 @@ const Login = () => {
                 margin="normal"
                 value={country}
                 disabled
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                sx={fieldSx}
               />
               
               <FormControl fullWidth margin="normal">
@@ -202,19 +315,21 @@ const Login = () => {
                       {...params} 
                       label="State (Location)" 
                       required 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      sx={fieldSx}
                     />
                   )}
                 />
               </FormControl>
 
               <FormControl fullWidth margin="normal">
-                <InputLabel>Login Type</InputLabel>
+                <InputLabel sx={{ color: isDark ? '#94A3B8 !important' : '#475569 !important' }}>
+                  Login Type
+                </InputLabel>
                 <Select
                   value={loginType}
                   label="Login Type"
                   onChange={handleLoginTypeChange}
-                  sx={{ borderRadius: 2 }}
+                  sx={selectSx}
                 >
                   <MenuItem value="Admin Login">Admin Login</MenuItem>
                   <MenuItem value="Store Incharge Login">Store Incharge Login</MenuItem>
@@ -231,7 +346,7 @@ const Login = () => {
                 onChange={(e) => setUserId(e.target.value)}
                 disabled={loading}
                 required
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                sx={fieldSx}
               />
               <TextField
                 fullWidth
@@ -243,7 +358,7 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
                 required
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                sx={fieldSx}
               />
               <Button
                 fullWidth
@@ -280,3 +395,4 @@ const Login = () => {
 };
 
 export default Login;
+

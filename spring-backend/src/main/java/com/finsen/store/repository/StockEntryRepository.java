@@ -9,6 +9,12 @@ import java.util.UUID;
 
 @Repository
 public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location ORDER BY s.arrivalDate DESC, s.arrivalTime DESC")
+    List<StockEntry> findAllWithDetails();
+
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location WHERE s.location.id = :locationId ORDER BY s.arrivalDate DESC, s.arrivalTime DESC")
+    List<StockEntry> findByLocationIdWithDetails(@org.springframework.data.repository.query.Param("locationId") UUID locationId);
+
     List<StockEntry> findByLocationIdOrderByArrivalDateDesc(UUID locationId);
     List<StockEntry> findByMaterialId(UUID materialId);
     List<StockEntry> findByMaterialIdAndLocationId(UUID materialId, UUID locationId);

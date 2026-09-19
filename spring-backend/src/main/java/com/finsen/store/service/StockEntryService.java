@@ -54,7 +54,7 @@ public class StockEntryService {
                 entityManager.clear();
             } catch (Exception ignored) {}
         }
-        return stockEntryRepository.findAll();
+        return stockEntryRepository.findAllWithDetails();
     }
 
     @Transactional(readOnly = true)
@@ -65,9 +65,9 @@ public class StockEntryService {
             } catch (Exception ignored) {}
         }
         if (locationId == null) {
-            return stockEntryRepository.findAll();
+            return stockEntryRepository.findAllWithDetails();
         }
-        return stockEntryRepository.findByLocationIdOrderByArrivalDateDesc(locationId);
+        return stockEntryRepository.findByLocationIdWithDetails(locationId);
     }
 
     @Transactional
