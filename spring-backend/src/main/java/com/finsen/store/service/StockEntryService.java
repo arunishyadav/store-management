@@ -329,10 +329,9 @@ public class StockEntryService {
                                 stockEntryRepository.save(se);
                             }
                         }
-                        m.setActive(false);
-                        materialRepository.save(m);
+                        materialRepository.delete(m);
                     } catch (Exception e) {
-                        logger.warn("JPA merge/deactivate duplicate material {} failed: {}", m.getId(), e.getMessage());
+                        logger.warn("JPA merge/delete duplicate material {} failed: {}", m.getId(), e.getMessage());
                     }
                 }
             }
@@ -347,7 +346,6 @@ public class StockEntryService {
         }
     }
 
-    @Transactional
     public void recalculateAllStockEntries() {
         logger.info("--- STARTUP STOCK RECALCULATION STARTING ---");
         try {
