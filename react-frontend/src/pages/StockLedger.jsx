@@ -525,6 +525,17 @@ export default function StockLedger() {
         materialName: (r.materialName && String(r.materialName).trim()) ? r.materialName : (r.material?.name || ''),
         materialCode: r.materialCode || r.material?.materialCode
       }));
+
+      mapped.sort((a, b) => {
+        const dateA = String(a.issueDate || a.arrivalDate || '');
+        const dateB = String(b.issueDate || b.arrivalDate || '');
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        const timeA = String(a.issueTime || a.arrivalTime || '');
+        const timeB = String(b.issueTime || b.arrivalTime || '');
+        return timeB.localeCompare(timeA);
+      });
       
       globalAllStockEntries = mapped;
 
