@@ -9,15 +9,16 @@ import java.util.UUID;
 
 @Repository
 public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location ORDER BY COALESCE(s.issueDate, s.arrivalDate) DESC, COALESCE(s.issueTime, s.arrivalTime) DESC")
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location WHERE s.deleted = false ORDER BY COALESCE(s.issueDate, s.arrivalDate) DESC, COALESCE(s.issueTime, s.arrivalTime) DESC")
     List<StockEntry> findAllWithDetails();
 
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location WHERE s.location.id = :locationId ORDER BY COALESCE(s.issueDate, s.arrivalDate) DESC, COALESCE(s.issueTime, s.arrivalTime) DESC")
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM StockEntry s JOIN FETCH s.material LEFT JOIN FETCH s.location WHERE s.location.id = :locationId AND s.deleted = false ORDER BY COALESCE(s.issueDate, s.arrivalDate) DESC, COALESCE(s.issueTime, s.arrivalTime) DESC")
     List<StockEntry> findByLocationIdWithDetails(@org.springframework.data.repository.query.Param("locationId") UUID locationId);
 
-    List<StockEntry> findByLocationIdOrderByArrivalDateDesc(UUID locationId);
+    List<StockEntry> findByLocationIdAndDeletedFalseOrderByArrivalDateDesc(UUID locationId);
     List<StockEntry> findByMaterialId(UUID materialId);
-    List<StockEntry> findByMaterialIdAndLocationId(UUID materialId, UUID locationId);
+    List<StockEntry> findByMaterialIdAndDeletedFalse(UUID materialId);
+    List<StockEntry> findByMaterialIdAndLocationIdAndDeletedFalse(UUID materialId, UUID locationId);
     
     @org.springframework.transaction.annotation.Transactional
     void deleteByMaterialId(UUID materialId);
@@ -32,8 +33,10 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
                    "  SELECT material_id, bill_number, " +
                    "  MAX(arrival_quantity) as arrival, SUM(outgoing_quantity) as outgoing " +
                    "  FROM stock_entries " +
+                   "  WHERE deleted = false " +
                    "  GROUP BY material_id, COALESCE(NULLIF(TRIM(bill_number), ''), CAST(id AS VARCHAR))" +
                    ") sub ON m.id = sub.material_id " +
+                   "WHERE m.deleted = false " +
                    "GROUP BY m.category, m.name, m.id", nativeQuery = true)
     List<Object[]> getAggregatedStockByCategoryAndName();
 
@@ -42,9 +45,10 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, UUID> {
                    "  SELECT material_id, bill_number, " +
                    "  MAX(arrival_quantity) as arrival, SUM(outgoing_quantity) as outgoing " +
                    "  FROM stock_entries " +
-                   "  WHERE location_id = :locationId " +
+                   "  WHERE location_id = :locationId AND deleted = false " +
                    "  GROUP BY material_id, COALESCE(NULLIF(TRIM(bill_number), ''), CAST(id AS VARCHAR))" +
                    ") sub ON m.id = sub.material_id " +
+                   "WHERE m.deleted = false " +
                    "GROUP BY m.category, m.name, m.id", nativeQuery = true)
     List<Object[]> getAggregatedStockByCategoryAndNameByLocation(@org.springframework.data.repository.query.Param("locationId") UUID locationId);
 }

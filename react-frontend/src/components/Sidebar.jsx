@@ -1,6 +1,6 @@
 import React from 'react';
 import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Box, Typography } from '@mui/material';
-import { Dashboard as DashboardIcon, Inventory as InventoryIcon, TableChart as TableChartIcon, Assessment as AssessmentIcon, People as PeopleIcon, HelpOutline as HelpIcon } from '@mui/icons-material';
+import { Dashboard as DashboardIcon, Inventory as InventoryIcon, TableChart as TableChartIcon, Assessment as AssessmentIcon, People as PeopleIcon, HelpOutline as HelpIcon, DeleteSweep as TrashIcon } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 
@@ -15,6 +15,7 @@ const Sidebar = ({ mobileOpen, handleDrawerToggle }) => {
     { text: 'Entry Book', icon: <TableChartIcon />, path: '/entry-book' },
     { text: 'Materials', icon: <InventoryIcon />, path: '/materials' },
     { text: 'MIS Report', icon: <AssessmentIcon />, path: '/mis-report' },
+    { text: 'Trash Bin', icon: <TrashIcon />, path: '/trash' },
     { text: 'Help', icon: <HelpIcon />, path: '/help' }
   ];
 

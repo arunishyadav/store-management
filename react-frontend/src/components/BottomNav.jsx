@@ -11,7 +11,7 @@ const BottomNav = () => {
 
   // Helper to determine the active tab based on pathname
   let currentValue = location.pathname;
-  if (!['/entry-book', '/materials', '/mis-report', '/users', '/help'].includes(currentValue)) {
+  if (!['/entry-book', '/materials', '/mis-report', '/trash', '/users', '/help'].includes(currentValue)) {
     currentValue = '/entry-book';
   }
 

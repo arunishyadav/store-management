@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Typography, Button, Paper, Chip, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Autocomplete, Card, CardContent, Grid, Divider, ToggleButton, ToggleButtonGroup, InputAdornment, Tooltip } from '@mui/material';
 import { DataGrid, GridRowModes, GridToolbar, GridActionsCellItem } from '@mui/x-data-grid';
 import { Add as AddIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Save as SaveIcon, Close as CancelIcon, Search as SearchIcon, Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
@@ -7,8 +7,8 @@ import useAuthStore from '../store/authStore';
 import { exportToCSV, printPDF } from '../utils/exportUtils';
 
 const Materials = () => {
-  const [rows, setRows] = useState([]);
-  const [allUniqueMaterials, setAllUniqueMaterials] = useState([]);
+  const [rawMaterials, setRawMaterials] = useState([]);
+  const [rawStockEntries, setRawStockEntries] = useState([]);
   const [mobileSearch, setMobileSearch] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState('ALL'); // 'ALL' | 'YES' | 'NO'
   const [startDate, setStartDate] = useState('');
@@ -18,145 +18,121 @@ const Materials = () => {
   const locationId = useAuthStore(state => state.selectedLocation?.id);
   const currentUser = useAuthStore(state => state.user);
   const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedDate, setSelectedDate] = useState(todayStr); // By default TODAY's date is filled!
+  const [isAllData, setIsAllData] = useState(false); // Only true when "All Data" / "ALL" button is tapped!
   const [lastUsedDate, setLastUsedDate] = useState(todayStr);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [open, setOpen] = useState(false);
-  const [rawStockEntries, setRawStockEntries] = useState([]);
   const [newMat, setNewMat] = useState({ 
     name: '', code: '', category: 'Hardware', 
     arrivalQuantity: '', arrivalDate: todayStr, arrivalTime: '', broughtBy: '' 
   });
 
   useEffect(() => {
-    if (locationId) {
-      fetchData();
-    }
-  }, [locationId, selectedDate]);
+    fetchData();
+  }, [locationId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const locQuery = locationId ? `?locationId=${locationId}` : '';
       const [matRes, stockRes] = await Promise.all([
-        api.get(`/api/v1/materials?locationId=${locationId}`),
-        api.get(`/api/v1/stock-entries?locationId=${locationId}`)
+        api.get(`/api/v1/materials${locQuery}`),
+        api.get(`/api/v1/stock-entries${locQuery}`)
       ]);
-      
-      const materialsData = matRes.data;
-      const entries = stockRes.data;
-      setRawStockEntries(entries);
-
-      const uniqueMaterialsMap = {};
-      materialsData.forEach(mat => {
-          if (!uniqueMaterialsMap[mat.materialCode]) {
-              uniqueMaterialsMap[mat.materialCode] = { ...mat, ids: [mat.id] };
-          } else {
-              uniqueMaterialsMap[mat.materialCode].ids.push(mat.id);
-          }
-      });
-      const uniqueMaterials = Object.values(uniqueMaterialsMap);
-
-      const formattedRows = uniqueMaterials.map(mat => {
-        const matEntries = entries.filter(e => 
-          mat.ids.includes(e.material?.id) ||
-          (e.materialCode && String(e.materialCode).trim().toLowerCase() === String(mat.materialCode).trim().toLowerCase())
-        );
-
-        const getNormalizedDate = (d) => {
-            if (!d) return 'nodate';
-            if (d instanceof Date) {
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            }
-            return String(d).substring(0, 10);
-        };
-
-        const calculateGroupedArrival = (entriesList) => {
-            let arrivalGroups = {};
-            entriesList.forEach(e => {
-                const outQty = parseFloat(e.outgoingQuantity || 0);
-                const arrQty = parseFloat(e.arrivalQuantity || 0);
-                if (outQty === 0 && arrQty > 0) {
-                    const arrDate = getNormalizedDate(e.arrivalDate);
-                    const arrTime = e.arrivalTime || 'notime';
-                    const key = `${arrDate}_${arrTime}_${arrQty}`;
-                    if (!arrivalGroups[key] || arrQty > arrivalGroups[key]) {
-                        arrivalGroups[key] = arrQty;
-                    }
-                }
-            });
-            let total = 0;
-            Object.values(arrivalGroups).forEach(val => total += val);
-            return total;
-        };
-
-        const totalArrival = calculateGroupedArrival(matEntries);
-        const totalOutgoing = matEntries.reduce((sum, e) => sum + parseFloat(e.outgoingQuantity || 0), 0);
-        const rawNowQuantity = totalArrival - totalOutgoing;
-        const nowQuantity = Math.max(0, rawNowQuantity); // Never show negative numbers on screen
-        const availableInStore = rawNowQuantity > 0 ? 'YES' : 'NO';
-        
-        // Filter entries for the SELECTED DATE (or date range)
-        let filteredMatEntries = matEntries;
-        if (startDate && endDate) {
-            filteredMatEntries = matEntries.filter(e => {
-                const d = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
-                return d >= startDate && d <= endDate;
-            });
-        } else if (selectedDate) {
-            filteredMatEntries = matEntries.filter(e => e.arrivalDate && e.arrivalDate.startsWith(selectedDate));
-        }
-
-        // Calculate arrival quantity FOR THE FILTERED DATE / PERIOD
-        const dateArrivalQty = (selectedDate || (startDate && endDate))
-            ? calculateGroupedArrival(filteredMatEntries)
-            : totalArrival;
-
-        const hasActivity = (selectedDate || (startDate && endDate))
-            ? filteredMatEntries.length > 0
-            : true;
-
-        const sortedArrivals = filteredMatEntries
-            .filter(e => e.arrivalDate && parseFloat(e.arrivalQuantity || 0) > 0)
-            .sort((a, b) => new Date(b.arrivalDate) - new Date(a.arrivalDate));
-            
-        const latestEntry = sortedArrivals.length > 0 ? sortedArrivals[0] : null;
-        const arrivalDateStr = latestEntry && latestEntry.arrivalDate ? String(latestEntry.arrivalDate).substring(0, 10) : 'N/A';
-        const arrivalTimeStr = latestEntry && latestEntry.arrivalTime ? latestEntry.arrivalTime : '';
-        const arrivalDateTime = arrivalDateStr !== 'N/A' ? `${arrivalDateStr} ${arrivalTimeStr}`.trim() : 'N/A';
-        const laneWalaName = latestEntry ? (latestEntry.broughtBy || 'N/A') : 'N/A';
-
-        // Date-specific item name from entry (e.g. 'karni 5 pcs' vs 'karni 2 pcs')
-        const dateSpecificName = (latestEntry && latestEntry.materialName && latestEntry.materialName.trim())
-            ? latestEntry.materialName
-            : mat.name;
-
-        return {
-          id: mat.id,
-          ids: mat.ids,
-          materialCode: mat.materialCode,
-          name: dateSpecificName,
-          category: mat.category,
-          arrivalQuantity: dateArrivalQty,
-          arrivalDate: arrivalDateTime,
-          laneWalaName: laneWalaName,
-          nowQuantity: nowQuantity,
-          availableInStore: availableInStore,
-          hasActivityToday: hasActivity
-        };
-      });
-
-      setAllUniqueMaterials(formattedRows);
-      
-      const filtered = (selectedDate || (startDate && endDate)) 
-        ? formattedRows.filter(r => r.hasActivityToday) 
-        : formattedRows;
-        
-      setRows(filtered);
+      setRawMaterials(matRes.data || []);
+      setRawStockEntries(stockRes.data || []);
     } catch (error) {
       console.error("Error fetching materials data:", error);
     }
     setLoading(false);
   };
+
+  const allUniqueMaterials = useMemo(() => {
+    const uniqueMaterialsMap = {};
+    (rawMaterials || []).forEach(mat => {
+      const key = (mat.name || mat.materialCode || mat.id).trim().toLowerCase();
+      if (!uniqueMaterialsMap[key]) {
+        uniqueMaterialsMap[key] = { ...mat, ids: [mat.id] };
+      } else {
+        uniqueMaterialsMap[key].ids.push(mat.id);
+      }
+    });
+    return Object.values(uniqueMaterialsMap);
+  }, [rawMaterials]);
+
+  const getNormalizedDate = (d) => {
+    if (!d) return 'nodate';
+    if (d instanceof Date) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return String(d).substring(0, 10);
+  };
+
+  const calculateGroupedArrival = (entriesList) => {
+    let arrivalGroups = {};
+    entriesList.forEach(e => {
+      const outQty = parseFloat(e.outgoingQuantity || 0);
+      const arrQty = parseFloat(e.arrivalQuantity || 0);
+      if (outQty === 0 && arrQty > 0) {
+        const arrDate = getNormalizedDate(e.arrivalDate);
+        const arrTime = e.arrivalTime || 'notime';
+        const key = `${arrDate}_${arrTime}_${arrQty}`;
+        if (!arrivalGroups[key] || arrQty > arrivalGroups[key]) {
+          arrivalGroups[key] = arrQty;
+        }
+      }
+    });
+    let total = 0;
+    Object.values(arrivalGroups).forEach(val => total += val);
+    return total;
+  };
+
+  const processedRows = useMemo(() => {
+    return allUniqueMaterials.map(mat => {
+      const matEntries = (rawStockEntries || []).filter(e => 
+        mat.ids.includes(e.material?.id) ||
+        (e.material?.name && String(e.material?.name).trim().toLowerCase() === String(mat.name).trim().toLowerCase()) ||
+        (e.materialCode && String(e.materialCode).trim().toLowerCase() === String(mat.materialCode).trim().toLowerCase() && (!e.material?.name || e.material?.name === mat.name))
+      );
+
+      const totalArrival = calculateGroupedArrival(matEntries);
+      const totalOutgoing = matEntries.reduce((sum, e) => sum + parseFloat(e.outgoingQuantity || 0), 0);
+      const rawNowQuantity = totalArrival - totalOutgoing;
+      const nowQuantity = Math.max(0, rawNowQuantity); // Never show negative numbers on screen
+      const availableInStore = rawNowQuantity > 0 ? 'YES' : 'NO';
+
+      const sortedArrivals = matEntries
+        .filter(e => e.arrivalDate && parseFloat(e.arrivalQuantity || 0) > 0)
+        .sort((a, b) => new Date(b.arrivalDate) - new Date(a.arrivalDate));
+      const latestArrival = sortedArrivals.length > 0 ? sortedArrivals[0] : null;
+
+      const arrivalDateStr = latestArrival && latestArrival.arrivalDate ? String(latestArrival.arrivalDate).substring(0, 10) : 'N/A';
+      const arrivalTimeStr = latestArrival && latestArrival.arrivalTime ? latestArrival.arrivalTime : '';
+      const arrivalDateTime = arrivalDateStr !== 'N/A' ? `${arrivalDateStr} ${arrivalTimeStr}`.trim() : 'N/A';
+      const laneWalaName = latestArrival ? (latestArrival.broughtBy || 'N/A') : 'N/A';
+
+      const dateSpecificName = (latestArrival && latestArrival.materialName && latestArrival.materialName.trim())
+        ? latestArrival.materialName
+        : mat.name;
+
+      return {
+        id: mat.id,
+        ids: mat.ids,
+        materialCode: mat.materialCode,
+        name: dateSpecificName,
+        category: mat.category,
+        totalArrival: totalArrival,
+        matEntries: matEntries,
+        arrivalQuantity: totalArrival,
+        arrivalDate: arrivalDateTime,
+        rawArrivalDate: arrivalDateStr,
+        laneWalaName: laneWalaName,
+        nowQuantity: nowQuantity,
+        availableInStore: availableInStore,
+      };
+    });
+  }, [allUniqueMaterials, rawStockEntries]);
 
 
 
@@ -249,13 +225,13 @@ const Materials = () => {
   };
 
   const handleSaveClick = (id) => () => {
-    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    setRowModesModel((prev) => ({ ...prev, [id]: { mode: GridRowModes.View } }));
   };
 
   const handleDeleteClick = (id) => async () => {
-    if (window.confirm("Are you sure you want to delete this material?")) {
+    if (window.confirm("Are you sure you want to move this material to Trash Bin? You can restore it anytime from Trash Bin.")) {
         try {
-          const rowToDelete = rows.find(r => r.id === id);
+          const rowToDelete = processedRows.find(r => r.id === id);
           if (rowToDelete && rowToDelete.ids) {
               await Promise.all(rowToDelete.ids.map(duplicateId => api.delete(`/api/v1/materials/${duplicateId}`)));
           } else {
@@ -264,15 +240,16 @@ const Materials = () => {
           fetchData();
         } catch (error) {
           console.error("Delete failed", error);
-          alert("Cannot delete material. It might have existing stock entries.");
+          alert("Cannot delete material: " + (error.response?.data?.message || error.message));
         }
     }
   };
 
   const handleCancelClick = (id) => () => {
-    setRowModesModel({
-      ...rowModesModel,
-      [id]: { mode: GridRowModes.View, ignoreModifications: true },
+    setRowModesModel((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
   };
 
@@ -296,7 +273,7 @@ const Materials = () => {
       const idsToUpdate = newRow.ids || [newRow.id];
       await Promise.all(idsToUpdate.map(dupId => api.put(`/api/v1/materials/${dupId}`, payload)));
       
-      setRows((oldRows) => oldRows.map((row) => (row.id === newRow.id ? newRow : row)));
+      setRawMaterials(prev => prev.map(m => idsToUpdate.includes(m.id) ? { ...m, ...payload } : m));
       return newRow;
     } catch (error) {
       console.error("Save failed", error);
@@ -379,46 +356,104 @@ const Materials = () => {
           <GridActionsCellItem icon={<EditIcon />} label="Edit" onClick={handleEditClick(id)} key="edit" />
         ];
         if (currentUser?.role === 'SUPER_ADMIN') {
-            actions.push(<GridActionsCellItem icon={<DeleteIcon />} label="Delete" onClick={handleDeleteClick(id)} color="error" key="delete" />);
+          actions.push(<GridActionsCellItem icon={<DeleteIcon />} label="Delete" onClick={handleDeleteClick(id)} color="error" key="delete" />);
         }
         return actions;
       },
     });
   }
 
-  const filteredRows = rows.filter(r => {
-    // 1. Stock Availability Filter (YES / NO / ALL)
-    let matchesAvailability = true;
-    const qty = parseFloat(r.nowQuantity || 0);
-    if (availabilityFilter === 'YES') {
-      matchesAvailability = qty > 0;
-    } else if (availabilityFilter === 'NO') {
-      matchesAvailability = qty <= 0;
+  const handleAllDataClick = () => {
+    setIsAllData(true);
+    setSelectedDate('');
+    setStartDate('');
+    setEndDate('');
+    setAvailabilityFilter('ALL');
+    setMobileSearch('');
+  };
+
+  const filteredRows = useMemo(() => {
+    const q = (mobileSearch || '').trim().toLowerCase();
+
+    // Active editing IDs in rowModesModel
+    const activeEditingIds = new Set(
+      Object.keys(rowModesModel || {}).filter(k => rowModesModel[k]?.mode === GridRowModes.Edit)
+    );
+
+    // User requirement: without date entered or "All Data" clicked, do not show any data
+    // EXCEPT: rows currently in edit mode must ALWAYS be kept so DataGrid never throws MissingRowIdError
+    if (!isAllData && !selectedDate && (!startDate || !endDate)) {
+      return processedRows.filter(r => activeEditingIds.has(r.id));
     }
 
-    // 2. Date Filter / Date Range
-    let matchesDate = true;
-    const entryDateStr = r.arrivalDate || '';
-    const entryDate = entryDateStr ? String(entryDateStr).substring(0, 10) : '';
+    return processedRows.filter(r => {
+      // If row is actively in edit mode, ALWAYS show it!
+      if (activeEditingIds.has(r.id)) {
+        return true;
+      }
 
-    if (startDate && endDate) {
-      matchesDate = entryDate >= startDate && entryDate <= endDate;
-    }
+      // 1. Stock Availability Filter (YES / NO / ALL)
+      const qty = parseFloat(r.nowQuantity || 0);
+      if (availabilityFilter === 'YES' && qty <= 0) return false;
+      if (availabilityFilter === 'NO' && qty > 0) return false;
 
-    // 3. Search Query
-    let matchesSearch = true;
-    if (mobileSearch && mobileSearch.trim() !== '') {
-      const q = mobileSearch.trim().toLowerCase();
-      matchesSearch = (
-        (r.materialCode && String(r.materialCode).toLowerCase().includes(q)) ||
-        (r.name && String(r.name).toLowerCase().includes(q)) ||
-        (r.category && String(r.category).toLowerCase().includes(q)) ||
-        (r.broughtBy && String(r.broughtBy).toLowerCase().includes(q))
-      );
-    }
+      // 2. Date Filter / Date Range
+      if (!isAllData) {
+        if (startDate && endDate) {
+          const hasRangeActivity = r.matEntries.some(e => {
+            const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
+            const issD = e.issueDate ? String(e.issueDate).substring(0, 10) : '';
+            return (arrD && arrD >= startDate && arrD <= endDate) || (issD && issD >= startDate && issD <= endDate);
+          });
+          if (!hasRangeActivity) return false;
+        } else if (selectedDate) {
+          const hasDateActivity = r.matEntries.some(e => {
+            const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
+            const issD = e.issueDate ? String(e.issueDate).substring(0, 10) : '';
+            return arrD === selectedDate || issD === selectedDate;
+          });
+          if (!hasDateActivity) return false;
+        } else {
+          return false;
+        }
+      }
 
-    return matchesAvailability && matchesDate && matchesSearch;
-  });
+      // 3. Search Query
+      if (q) {
+        const code = String(r.materialCode || '').toLowerCase();
+        const name = String(r.name || '').toLowerCase();
+        const cat = String(r.category || '').toLowerCase();
+        const lane = String(r.laneWalaName || '').toLowerCase();
+        if (!code.includes(q) && !name.includes(q) && !cat.includes(q) && !lane.includes(q)) {
+          return false;
+        }
+      }
+
+      return true;
+    }).map(r => {
+      // When a date is selected, display that date's grouped arrival quantity if arrivals occurred
+      if (!isAllData && (selectedDate || (startDate && endDate))) {
+        let dateEntries = r.matEntries;
+        if (startDate && endDate) {
+          dateEntries = r.matEntries.filter(e => {
+            const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
+            return arrD >= startDate && arrD <= endDate;
+          });
+        } else if (selectedDate) {
+          dateEntries = r.matEntries.filter(e => {
+            const arrD = e.arrivalDate ? String(e.arrivalDate).substring(0, 10) : '';
+            return arrD === selectedDate;
+          });
+        }
+        const dateArrQty = calculateGroupedArrival(dateEntries);
+        return {
+          ...r,
+          arrivalQuantity: dateArrQty > 0 ? dateArrQty : r.totalArrival
+        };
+      }
+      return r;
+    });
+  }, [processedRows, availabilityFilter, selectedDate, startDate, endDate, mobileSearch, isAllData, rowModesModel]);
 
   const handleExportCSV = () => {
     const exportData = filteredRows.map(r => ({
@@ -476,7 +511,17 @@ const Materials = () => {
                 size="small"
                 value={availabilityFilter}
                 exclusive
-                onChange={(e, val) => val && setAvailabilityFilter(val)}
+                onChange={(e, val) => {
+                  if (val) {
+                    setAvailabilityFilter(val);
+                    if (val === 'ALL') {
+                      setIsAllData(true);
+                      setSelectedDate('');
+                      setStartDate('');
+                      setEndDate('');
+                    }
+                  }
+                }}
                 color="primary"
               >
                 <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, fontWeight: 'bold' }}>ALL</ToggleButton>
@@ -522,7 +567,12 @@ const Materials = () => {
                 <InputAdornment position="start">
                   <SearchIcon fontSize="small" color="primary" />
                 </InputAdornment>
-              )
+              ),
+              endAdornment: mobileSearch ? (
+                <InputAdornment position="end">
+                  <Button size="small" sx={{ minWidth: 0, p: 0.2 }} onClick={() => setMobileSearch('')}>✕</Button>
+                </InputAdornment>
+              ) : null
             }}
           />
 
@@ -533,6 +583,7 @@ const Materials = () => {
                 value={selectedDate} 
                 onChange={(e) => {
                   setSelectedDate(e.target.value);
+                  setIsAllData(false);
                   if (e.target.value) { setStartDate(''); setEndDate(''); }
                 }} 
                 style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '150px' }}
@@ -546,6 +597,7 @@ const Materials = () => {
                 value={startDate} 
                 onChange={(e) => {
                   setStartDate(e.target.value);
+                  setIsAllData(false);
                   if (e.target.value) setSelectedDate('');
                 }} 
                 style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '140px' }}
@@ -556,6 +608,7 @@ const Materials = () => {
                 value={endDate} 
                 onChange={(e) => {
                   setEndDate(e.target.value);
+                  setIsAllData(false);
                   if (e.target.value) setSelectedDate('');
                 }} 
                 style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '140px' }}
@@ -563,10 +616,10 @@ const Materials = () => {
           </Box>
 
           <Button 
-            variant={(!selectedDate && !startDate && !endDate) ? "contained" : "outlined"} 
-            color={(!selectedDate && !startDate && !endDate) ? "secondary" : "inherit"}
+            variant={isAllData ? "contained" : "outlined"} 
+            color={isAllData ? "secondary" : "inherit"}
             size="small" 
-            onClick={() => { setSelectedDate(''); setStartDate(''); setEndDate(''); }}
+            onClick={handleAllDataClick}
             sx={{ whiteSpace: 'nowrap', fontWeight: 'bold' }}
           >
             All Data
@@ -656,7 +709,17 @@ const Materials = () => {
                     size="small"
                     value={availabilityFilter}
                     exclusive
-                    onChange={(e, val) => val && setAvailabilityFilter(val)}
+                    onChange={(e, val) => {
+                      if (val) {
+                        setAvailabilityFilter(val);
+                        if (val === 'ALL') {
+                          setIsAllData(true);
+                          setSelectedDate('');
+                          setStartDate('');
+                          setEndDate('');
+                        }
+                      }
+                    }}
                     color="primary"
                   >
                     <ToggleButton value="ALL" sx={{ px: 1, py: 0.2, fontSize: '0.75rem', fontWeight: 'bold' }}>ALL</ToggleButton>
@@ -701,16 +764,17 @@ const Materials = () => {
                             value={selectedDate} 
                             onChange={(e) => {
                               setSelectedDate(e.target.value);
+                              setIsAllData(false);
                               if (e.target.value) { setStartDate(''); setEndDate(''); }
                             }} 
                             style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.8rem', width: '100%' }}
                         />
                       </Box>
                       <Button 
-                        variant={(!selectedDate && !startDate && !endDate) ? "contained" : "outlined"} 
-                        color={(!selectedDate && !startDate && !endDate) ? "secondary" : "inherit"}
+                        variant={isAllData ? "contained" : "outlined"} 
+                        color={isAllData ? "secondary" : "inherit"}
                         size="small" 
-                        onClick={() => { setSelectedDate(''); setStartDate(''); setEndDate(''); }}
+                        onClick={handleAllDataClick}
                         sx={{ whiteSpace: 'nowrap', fontWeight: 'bold', px: 1, py: 0.3, fontSize: '0.75rem' }}
                       >
                         All Data
@@ -724,6 +788,7 @@ const Materials = () => {
                           value={startDate} 
                           onChange={(e) => {
                             setStartDate(e.target.value);
+                            setIsAllData(false);
                             if (e.target.value) setSelectedDate('');
                           }} 
                           style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.75rem', flexGrow: 1 }}
@@ -734,6 +799,7 @@ const Materials = () => {
                           value={endDate} 
                           onChange={(e) => {
                             setEndDate(e.target.value);
+                            setIsAllData(false);
                             if (e.target.value) setSelectedDate('');
                           }} 
                           style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.75rem', flexGrow: 1 }}

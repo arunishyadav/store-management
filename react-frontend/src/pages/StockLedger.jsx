@@ -27,24 +27,91 @@ const initialRow = {
 
 let globalAllStockEntries = [];
 
-function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = []) {
-  if (!materialCode) return 0;
-  const normalizeStr = (s) => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-  const targetNorm = normalizeStr(materialCode);
+export function isSameMaterial(r1, r2, masterMaterials = []) {
+  if (!r1 || !r2) return false;
   
+  // 1. Direct Material ID match
+  const id1 = r1.materialId || r1.material?.id || (r1.id && masterMaterials.some(m => m.id === r1.id) ? r1.id : null);
+  const id2 = r2.materialId || r2.material?.id || (r2.id && masterMaterials.some(m => m.id === r2.id) ? r2.id : null);
+  if (id1 && id2 && String(id1) === String(id2)) return true;
+
+  const clean = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const code1 = clean(r1.materialCode || r1.material?.materialCode);
+  const code2 = clean(r2.materialCode || r2.material?.materialCode);
+  const name1 = clean(r1.materialName || r1.material?.name || r1.name);
+  const name2 = clean(r2.materialName || r2.material?.name || r2.name);
+
+  // If one has materialId and other doesn't, resolve from masterMaterials
+  if (masterMaterials && masterMaterials.length > 0) {
+    if (id1 && !id2) {
+      const m1 = masterMaterials.find(m => String(m.id) === String(id1));
+      if (m1) {
+        const m1Code = clean(m1.materialCode);
+        const m1Name = clean(m1.name);
+        if ((m1Code && (m1Code === code2 || m1Code === name2)) ||
+            (m1Name && (m1Name === name2 || m1Name === code2))) {
+          return true;
+        }
+      }
+    }
+    if (id2 && !id1) {
+      const m2 = masterMaterials.find(m => String(m.id) === String(id2));
+      if (m2) {
+        const m2Code = clean(m2.materialCode);
+        const m2Name = clean(m2.name);
+        if ((m2Code && (m2Code === code1 || m2Code === name1)) ||
+            (m2Name && (m2Name === name1 || m2Name === code1))) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Exact matches
+  if (name1 && name2 && name1 === name2) return true;
+  if (code1 && code2 && code1 === code2) return true;
+  if (code1 && name2 && code1 === name2) return true;
+  if (name1 && code2 && name1 === code2) return true;
+
+  return false;
+}
+
+export function getMaterialKey(row, masterMaterials = []) {
+  if (!row) return '';
+  const matId = row.materialId || row.material?.id;
+  if (matId) {
+    return 'mat_' + String(matId);
+  }
+  const clean = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const name = clean(row.materialName || row.material?.name || row.name);
+  const code = clean(row.materialCode || row.material?.materialCode);
+
+  if (masterMaterials && masterMaterials.length > 0) {
+    const mat = masterMaterials.find(m => isSameMaterial(m, row));
+    if (mat) return 'mat_' + String(mat.id);
+  }
+
+  if (name && code) return `${code}___${name}`;
+  return name || code || '';
+}
+
+function getMaterialTotalArrival(rowOrCode, allRows = [], masterMaterials = []) {
+  if (!rowOrCode) return 0;
+  const row = (typeof rowOrCode === 'object') ? rowOrCode : { materialCode: rowOrCode };
+
   let totalArr = 0;
   const arrivalBatches = {};
   
   const rowsToUse = (allRows && allRows.length > 0) ? allRows : (globalAllStockEntries || []);
   rowsToUse.forEach(r => {
-    const rNorm = normalizeStr(r.materialCode);
-    if (rNorm && rNorm === targetNorm) {
+    if (isSameMaterial(r, row, masterMaterials)) {
       const arrQty = parseFloat(r.arrivalQuantity || 0);
       const outQty = parseFloat(r.outgoingQuantity || 0);
       if (arrQty > 0 && outQty === 0) {
         const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : 'nodate';
         const arrTime = r.arrivalTime || 'notime';
-        const batchKey = `${arrDate}_${arrTime}_${arrQty}`;
+        const batchKey = r.id || `${arrDate}_${arrTime}_${arrQty}`;
         if (!arrivalBatches[batchKey] || arrQty > arrivalBatches[batchKey]) {
           arrivalBatches[batchKey] = arrQty;
         }
@@ -57,7 +124,7 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
   });
 
   if (totalArr === 0 && masterMaterials && masterMaterials.length > 0) {
-    const mat = masterMaterials.find(m => normalizeStr(m.materialCode) === targetNorm || normalizeStr(m.name) === targetNorm);
+    const mat = masterMaterials.find(m => isSameMaterial(m, row));
     if (mat) {
       totalArr = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
     }
@@ -69,57 +136,16 @@ function getMaterialTotalArrival(materialCode, allRows = [], masterMaterials = [
 function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
     if (!row) return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
     
-    const targetCode = String(row.materialCode || '').trim().toLowerCase();
-    const targetName = String(row.materialName || '').trim().toLowerCase();
-    const targetMatId = row.materialId || row.material?.id || null;
-
-    if (!targetCode && !targetName && !targetMatId) {
-        return { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
-    }
-    
     const baseRows = Array.isArray(allBackendRows) && allBackendRows.length > 0 ? allBackendRows : (globalAllStockEntries || []);
     const allRows = [...baseRows];
-    const existingIndex = allRows.findIndex(r => r.id === row.id);
+    const existingIndex = allRows.findIndex(r => r.id && r.id === row.id);
     if (existingIndex !== -1) {
         allRows[existingIndex] = row;
     } else if (row.id) {
         allRows.push(row);
     }
-    
-    const normalizeStr = (s) => {
-        if (!s) return '';
-        let str = String(s).trim().toLowerCase();
-        str = str.replace(/\(?\d{2,4}[-/\.]\d{2}[-/\.]\d{2,4}\)?/g, '');
-        str = str.replace(/bound/g, 'bond').replace(/glinder/g, 'grinder').replace(/while/g, 'wheel');
-        return str.replace(/[^a-z0-9]/g, '');
-    };
-    const normTargetCode = normalizeStr(targetCode);
-    const normTargetName = normalizeStr(targetName);
 
-    const materialRows = allRows.filter(r => {
-        const rMatId = r.materialId || r.material?.id || null;
-        if (targetMatId && rMatId && String(targetMatId) === String(rMatId)) {
-            return true;
-        }
-        
-        const rCode = String(r.materialCode || r.material?.materialCode || '').trim().toLowerCase();
-        const normRCode = normalizeStr(rCode);
-        if (normTargetCode && normRCode && (normTargetCode === normRCode || normTargetCode.includes(normRCode) || normRCode.includes(normTargetCode))) {
-            return true;
-        }
-
-        const rName = String(r.materialName || r.material?.name || '').trim().toLowerCase();
-        const normRName = normalizeStr(rName);
-        if (normTargetName && normRName && (normTargetName === normRName || normTargetName.includes(normRName) || normRName.includes(normTargetName))) {
-            return true;
-        }
-
-        if (normTargetCode && normRName && (normTargetCode === normRName || normTargetCode.includes(normRName) || normRName.includes(normTargetCode))) {
-            return true;
-        }
-
-        return false;
-    });
+    const materialRows = allRows.filter(r => isSameMaterial(r, row, masterMaterials));
 
     const getNormalizedDate = (d) => {
         if (!d) return 'nodate';
@@ -149,15 +175,7 @@ function calculateStockState(row, allBackendRows = [], masterMaterials = []) {
     });
 
     if (totalArrivalQty === 0 && masterMaterials && masterMaterials.length > 0) {
-        const mat = masterMaterials.find(m => {
-            const mId = m.id;
-            if (targetMatId && mId && String(targetMatId) === String(mId)) return true;
-            const mCode = normalizeStr(m.materialCode || '');
-            if (normTargetCode && mCode && normTargetCode === mCode) return true;
-            const mName = normalizeStr(m.name || '');
-            if (normTargetName && mName && normTargetName === mName) return true;
-            return false;
-        });
+        const mat = masterMaterials.find(m => isSameMaterial(m, row));
         if (mat) {
             totalArrivalQty = parseFloat(mat.openingStock || mat.totalArrival || mat.totalQuantity || 0);
         }
@@ -226,8 +244,7 @@ function AutocompleteEditCell(props) {
       const code = String(m.materialCode).trim();
       const name = m.name && String(m.name).trim() ? String(m.name).trim() : '';
       const key = `${code.toLowerCase()}___${name.toLowerCase()}___master`;
-      
-      const matchExists = Object.keys(optionsMap).some(k => k.startsWith(`${code.toLowerCase()}___`));
+      const matchExists = Object.keys(optionsMap).some(k => k.startsWith(`${code.toLowerCase()}___${name.toLowerCase()}___`));
       if (!matchExists && !optionsMap[key]) {
         optionsMap[key] = {
           value: code,
@@ -254,19 +271,25 @@ function AutocompleteEditCell(props) {
 
     if (!targetEntry || !targetEntry.arrivalQuantity) {
       const arrivalEntry = (globalAllStockEntries || []).find(e => 
-        e.materialCode && 
-        String(e.materialCode).trim().toLowerCase() === String(selectedCode).trim().toLowerCase() && 
+        isSameMaterial(e, { materialCode: selectedCode, materialName: selectedName }, materials) &&
         parseFloat(e.arrivalQuantity || 0) > 0
       );
       if (arrivalEntry) {
         targetEntry = arrivalEntry;
       } else if (!targetEntry) {
         targetEntry = (globalAllStockEntries || []).find(e => 
-          e.materialCode && 
-          String(e.materialCode).trim().toLowerCase() === String(selectedCode).trim().toLowerCase()
+          isSameMaterial(e, { materialCode: selectedCode, materialName: selectedName }, materials)
         );
       }
     }
+
+    let targetMaterialId = targetEntry?.materialId || targetEntry?.material?.id || null;
+    if (!targetMaterialId && materials && materials.length > 0) {
+      const mat = materials.find(m => isSameMaterial(m, { materialCode: selectedCode, materialName: selectedName }));
+      if (mat) targetMaterialId = mat.id;
+    }
+
+    const finalName = selectedName || (targetEntry ? targetEntry.materialName : '');
 
     const safeSet = (fieldName, fieldValue) => {
       try {
@@ -277,12 +300,19 @@ function AutocompleteEditCell(props) {
     };
 
     safeSet(field, selectedCode);
-    
-    let updateObj = { id, materialCode: selectedCode };
-    if (selectedName) {
-      safeSet('materialName', selectedName);
-      updateObj.materialName = selectedName;
+    if (finalName) safeSet('materialName', finalName);
+    if (targetMaterialId) {
+      safeSet('materialId', targetMaterialId);
+      safeSet('material', { id: targetMaterialId });
     }
+    
+    let updateObj = { 
+      id, 
+      materialCode: selectedCode,
+      materialName: finalName,
+      materialId: targetMaterialId,
+      material: targetMaterialId ? { id: targetMaterialId } : null
+    };
 
     if (targetEntry) {
        const fieldsToCopy = ['billNumber', 'broughtBy', 'storeInchargeName', 'productLength', 'innerDiameter', 'kg'];
@@ -294,8 +324,8 @@ function AutocompleteEditCell(props) {
           }
        });
     } else {
-       const mat = materials.find(m => m.materialCode.toLowerCase() === selectedCode.toLowerCase());
-       if (mat && !selectedName) {
+       const mat = materials.find(m => isSameMaterial(m, { materialCode: selectedCode, materialName: selectedName }));
+       if (mat && !finalName) {
            safeSet('materialName', mat.name);
            updateObj.materialName = mat.name;
        }
@@ -309,8 +339,17 @@ function AutocompleteEditCell(props) {
       console.warn("DataGrid updateRows skipped:", e);
     }
 
-    const dummyRow = { id, materialCode: selectedCode, isNew: true, outgoingQuantity: 0, arrivalDate: updateObj.arrivalDate || '' };
-    const stockState = calculateStockState(dummyRow, globalAllStockEntries);
+    const dummyRow = { 
+      id, 
+      materialId: targetMaterialId,
+      material: targetMaterialId ? { id: targetMaterialId } : null,
+      materialCode: selectedCode, 
+      materialName: updateObj.materialName || finalName,
+      isNew: true, 
+      outgoingQuantity: 0, 
+      arrivalDate: updateObj.arrivalDate || '' 
+    };
+    const stockState = calculateStockState(dummyRow, globalAllStockEntries, materials);
     if (stockState.runningBalance <= 0) {
         alert(`Out of Stock! Material '${selectedCode}' is currently not available in the store (Balance: ${stockState.runningBalance}).`);
     }
@@ -362,10 +401,10 @@ function NameEditCell(props) {
 }
 
 function EditToolbar(props) {
-  const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } = props;
+  const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, isAllData, setIsAllData, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } = props;
   const handleClick = () => {
     const id = uuidv4();
-    const newArrivalDate = lastUsedArrivalDate || dateFilter || todayStr;
+    const newArrivalDate = dateFilter || todayStr;
     setRows((oldRows) => [{ ...initialRow, id, isNew: true, arrivalDate: newArrivalDate }, ...oldRows]);
     setRowModesModel((oldModel) => ({
       ...oldModel,
@@ -415,7 +454,17 @@ function EditToolbar(props) {
               size="small"
               value={availabilityFilter}
               exclusive
-              onChange={(e, val) => val && setAvailabilityFilter(val)}
+              onChange={(e, val) => {
+                if (val) {
+                  setAvailabilityFilter(val);
+                  if (val === 'ALL') {
+                    setIsAllData(true);
+                    setDateFilter('');
+                    setStartDate('');
+                    setEndDate('');
+                  }
+                }
+              }}
               color="primary"
             >
               <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, fontWeight: 'bold' }}>ALL</ToggleButton>
@@ -444,6 +493,7 @@ function EditToolbar(props) {
                   value={dateFilter} 
                   onChange={(e) => {
                     setDateFilter(e.target.value);
+                    setIsAllData(false);
                     if (e.target.value) { 
                       setLastUsedArrivalDate(e.target.value);
                       setStartDate(''); 
@@ -461,6 +511,7 @@ function EditToolbar(props) {
                   value={startDate} 
                   onChange={(e) => {
                     setStartDate(e.target.value);
+                    setIsAllData(false);
                     if (e.target.value) setDateFilter('');
                   }} 
                   style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '140px' }}
@@ -471,6 +522,7 @@ function EditToolbar(props) {
                   value={endDate} 
                   onChange={(e) => {
                     setEndDate(e.target.value);
+                    setIsAllData(false);
                     if (e.target.value) setDateFilter('');
                   }} 
                   style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #ccc', maxWidth: '140px' }}
@@ -478,10 +530,17 @@ function EditToolbar(props) {
           </Box>
 
           <Button 
-            variant={(!dateFilter && !startDate && !endDate) ? "contained" : "outlined"} 
-            color={(!dateFilter && !startDate && !endDate) ? "secondary" : "inherit"}
+            variant={isAllData ? "contained" : "outlined"} 
+            color={isAllData ? "secondary" : "inherit"}
             size="small" 
-            onClick={() => { setDateFilter(''); setStartDate(''); setEndDate(''); }}
+            onClick={() => {
+              setIsAllData(true);
+              setDateFilter('');
+              setStartDate('');
+              setEndDate('');
+              setAvailabilityFilter('ALL');
+              setSearchQuery('');
+            }}
             sx={{ whiteSpace: 'nowrap', fontWeight: 'bold' }}
           >
             All Data
@@ -498,7 +557,8 @@ export default function StockLedger() {
   const [rowModesModel, setRowModesModel] = useState({});
   const [materials, setMaterials] = useState([]);
   const todayStr = new Date().toISOString().split('T')[0];
-  const [dateFilter, setDateFilter] = useState(''); // Default to All Data so all historical entries show up immediately
+  const [dateFilter, setDateFilter] = useState(todayStr); // By default TODAY's date is filled!
+  const [isAllData, setIsAllData] = useState(false); // Only true when "All Data" / "ALL" button is tapped!
   const [lastUsedArrivalDate, setLastUsedArrivalDate] = useState('');
   const [lastUsedIssueDate, setLastUsedIssueDate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -506,17 +566,16 @@ export default function StockLedger() {
   const currentUser = useAuthStore(state => state.user);
 
   useEffect(() => {
-    if (locationId) {
-      fetchData();
-    }
+    fetchData();
   }, [locationId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const locQuery = locationId ? `?locationId=${locationId}` : '';
       const [stockRes, matRes] = await Promise.all([
-        api.get(`/api/v1/stock-entries?locationId=${locationId}`),
-        api.get(`/api/v1/materials?locationId=${locationId}`)
+        api.get(`/api/v1/stock-entries${locQuery}`),
+        api.get(`/api/v1/materials${locQuery}`)
       ]);
       
       const mapped = stockRes.data.map(r => ({
@@ -546,11 +605,12 @@ export default function StockLedger() {
       
       setRows(formattedRows);
 
-      // Deduplicate materials by materialCode so dropdown contains unique items ONLY
+      // Deduplicate materials by ID or code+name so dropdown contains all distinct items
       const uniqueMatMap = {};
       matRes.data.forEach(m => {
-        if (m.materialCode && !uniqueMatMap[m.materialCode.trim().toLowerCase()]) {
-          uniqueMatMap[m.materialCode.trim().toLowerCase()] = m;
+        const key = m.id || `${(m.materialCode || '').trim().toLowerCase()}___${(m.name || '').trim().toLowerCase()}`;
+        if (!uniqueMatMap[key]) {
+          uniqueMatMap[key] = m;
         }
       });
       setMaterials(Object.values(uniqueMatMap));
@@ -571,29 +631,30 @@ export default function StockLedger() {
   };
 
   const handleSaveClick = (id) => () => {
-    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    setRowModesModel((prev) => ({ ...prev, [id]: { mode: GridRowModes.View } }));
   };
 
   const handleDeleteClick = (id) => async () => {
-    try {
-      await api.delete(`/api/v1/stock-entries/${id}`);
-      setRows((prevRows) => prevRows.filter((row) => row.id !== id));
-      globalAllStockEntries = globalAllStockEntries.filter((row) => row.id !== id);
-      fetchData();
-    } catch (error) {
-      console.error("Delete failed", error);
+    if (window.confirm("Are you sure you want to move this entry to Trash Bin? You can restore it anytime from Trash Bin.")) {
+      try {
+        await api.delete(`/api/v1/stock-entries/${id}`);
+        setRows((prevRows) => prevRows.filter((row) => row.id !== id));
+        globalAllStockEntries = globalAllStockEntries.filter((row) => row.id !== id);
+        fetchData();
+      } catch (error) {
+        console.error("Delete failed", error);
+        alert("Failed to delete entry: " + (error.response?.data?.message || error.message));
+      }
     }
   };
 
   const handleCancelClick = (id) => () => {
-    setRowModesModel({
-      ...rowModesModel,
-      [id]: { mode: GridRowModes.View, ignoreModifications: true },
+    setRowModesModel((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
-    const editedRow = rows.find((row) => row.id === id);
-    if (editedRow.isNew) {
-      setRows(rows.filter((row) => row.id !== id));
-    }
+    setRows((prevRows) => prevRows.filter((row) => !(row.id === id && row.isNew)));
   };
   const processRowUpdate = async (newRow) => {
     const out = parseFloat(newRow.outgoingQuantity || 0);
@@ -605,43 +666,15 @@ export default function StockLedger() {
     } else if (arr > 0) {
         updatedRow.outgoingQuantity = 0;
     }
-    
-    // Auto Calculate running stock balance
-    const stockStateForNewRow = calculateStockState(updatedRow, globalAllStockEntries);
-    updatedRow.totalAvailableQty = stockStateForNewRow.runningBalance;
 
-    // Check stock balance before issuing (Out cannot exceed Available Stock)
-    if (out > 0) {
-        const stockState = calculateStockState({ ...updatedRow, outgoingQuantity: 0, isNew: true }, globalAllStockEntries);
-        const currentAvailable = Math.max(0, stockState.runningBalance);
-        if (out > currentAvailable) {
-            alert(`⚠️ Out of Stock Error!\nMaterial '${newRow.materialCode}' currently has only ${currentAvailable} pcs available in store, but you entered Outgoing Qty = ${out} pcs.\nMaterial stock cannot be issued beyond available stock!`);
-            throw new Error(`Out of Stock! Only ${currentAvailable} pcs available in store.`);
-        }
-    }
-
-    // Match material case-insensitively by code, name, or particulars
+    // Match material case-insensitively by ID, code, name, or cross-matching
     let finalMaterialId = updatedRow.materialId || (updatedRow.material ? updatedRow.material.id : null);
-    const rawSearch = String(newRow.materialCode || newRow.materialName || '').trim();
-    const cleanSearch = rawSearch.toLowerCase().replace(/\(?\d{2,4}[-/\.]\d{2}[-/\.]\d{2,4}\)?/g, '').replace(/[^a-z0-9]/g, '');
-    if (!finalMaterialId && cleanSearch) {
-       let mat = materials.find(m => {
-          const mCode = m.materialCode ? String(m.materialCode).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-          const mName = m.name ? String(m.name).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-          return (mCode && (mCode === cleanSearch || cleanSearch.includes(mCode) || mCode.includes(cleanSearch))) ||
-                 (mName && (mName === cleanSearch || cleanSearch.includes(mName) || mName.includes(cleanSearch)));
-       });
+    if (!finalMaterialId) {
+       const mat = (materials || []).find(m => isSameMaterial(m, updatedRow, materials));
        if (mat) {
           finalMaterialId = mat.id;
        } else {
-          let stockMatch = globalAllStockEntries.find(r => {
-             const rCode = r.materialCode || (r.material && r.material.materialCode) || '';
-             const rName = r.materialName || (r.material && r.material.name) || '';
-             const normCode = String(rCode).toLowerCase().replace(/[^a-z0-9]/g, '');
-             const normName = String(rName).toLowerCase().replace(/[^a-z0-9]/g, '');
-             return (normCode && (normCode === cleanSearch || cleanSearch.includes(normCode) || normCode.includes(cleanSearch))) ||
-                    (normName && (normName === cleanSearch || cleanSearch.includes(normName) || normName.includes(cleanSearch)));
-          });
+          const stockMatch = (globalAllStockEntries || []).find(r => isSameMaterial(r, updatedRow, materials));
           if (stockMatch) {
              finalMaterialId = stockMatch.material?.id || stockMatch.materialId;
           }
@@ -663,6 +696,25 @@ export default function StockLedger() {
        } catch (e) {
           console.error("Auto material creation error:", e);
        }
+    }
+
+    if (finalMaterialId) {
+       updatedRow.materialId = finalMaterialId;
+       updatedRow.material = { id: finalMaterialId };
+    }
+    
+    // Auto Calculate running stock balance with resolved material and full master materials list
+    const stockStateForNewRow = calculateStockState(updatedRow, globalAllStockEntries, materials);
+    updatedRow.totalAvailableQty = stockStateForNewRow.runningBalance;
+
+    // Check stock balance before issuing (Out cannot exceed Available Stock)
+    if (out > 0) {
+        const stockState = calculateStockState({ ...updatedRow, outgoingQuantity: 0, isNew: true }, globalAllStockEntries, materials);
+        const currentAvailable = Math.max(0, stockState.runningBalance);
+        if (out > currentAvailable) {
+            alert(`⚠️ Out of Stock Error!\nMaterial '${newRow.materialCode}' currently has only ${currentAvailable} pcs available in store, but you entered Outgoing Qty = ${out} pcs.\nMaterial stock cannot be issued beyond available stock!`);
+            throw new Error(`Out of Stock! Only ${currentAvailable} pcs available in store.`);
+        }
     }
 
     const formatDate = (dateVal) => {
@@ -731,9 +783,19 @@ export default function StockLedger() {
         materialName: (savedRow.materialName && String(savedRow.materialName).trim()) ? savedRow.materialName : (savedRow.material?.name || updatedRow.materialName || '')
       };
       
-      setRows((prevRows) => prevRows.map((row) => (row.id === newRow.id ? finalRow : row)));
-      fetchData();
-      return finalRow;
+      // CRITICAL: DataGrid requires the returned row to have the EXACT SAME id (newRow.id).
+      // If we return a different ID, DataGrid will throw "No row with id #... found".
+      // We clean up rowModesModel and refresh the backend data asynchronously.
+      setTimeout(() => {
+        setRowModesModel((prev) => {
+          const next = { ...prev };
+          delete next[newRow.id];
+          return next;
+        });
+        fetchData();
+      }, 100);
+
+      return { ...finalRow, id: newRow.id, isNew: false };
     } catch (error) {
       console.error("Save stock entry failed:", error);
       alert(error.response?.data?.message || error.message || "Failed to save stock entry");
@@ -787,9 +849,13 @@ export default function StockLedger() {
       editable: true,
       renderEditCell: (params) => <AutocompleteEditCell {...params} materials={materials} allBackendRows={rows} />,
       renderCell: (params) => {
-          if (!params.value) return '';
-          const mat = materials.find(m => m.materialCode === params.value);
-          const displayLabel = mat ? `${mat.materialCode} - ${mat.name}` : params.value;
+          const rowMat = materials.find(m => (params.row?.materialId && m.id === params.row.materialId) || 
+            (params.row?.materialName && m.name && m.name.trim().toLowerCase() === params.row.materialName.trim().toLowerCase()) ||
+            (params.row?.materialCode && m.materialCode && m.materialCode.trim().toLowerCase() === params.row.materialCode.trim().toLowerCase())
+          );
+          const code = params.row?.materialCode || rowMat?.materialCode || params.value || '';
+          const name = params.row?.materialName || rowMat?.name || '';
+          const displayLabel = (code && name) ? `${code} - ${name}` : (code || name || '-');
           return (
             <Tooltip title={displayLabel} arrow placement="top-start">
               <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
@@ -824,7 +890,7 @@ export default function StockLedger() {
       valueGetter: (value, row) => {
         const arrVal = parseFloat(value || 0);
         if (arrVal > 0) return arrVal;
-        const totalArr = getMaterialTotalArrival(row.materialCode, globalAllStockEntries, materials);
+        const totalArr = getMaterialTotalArrival(row, globalAllStockEntries, materials);
         return totalArr > 0 ? totalArr : 0;
       },
       renderCell: (params) => {
@@ -839,7 +905,7 @@ export default function StockLedger() {
             />
           );
         }
-        const totalArr = getMaterialTotalArrival(params.row.materialCode, globalAllStockEntries, materials);
+        const totalArr = getMaterialTotalArrival(params.row, globalAllStockEntries, materials);
         if (totalArr > 0) {
           return (
             <Tooltip title="Total stock arrived for this material across all arrival batches">
@@ -887,9 +953,9 @@ export default function StockLedger() {
         <Chip label={params.value} color={params.value === 'YES' ? 'success' : 'error'} variant="outlined" size="small" />
       ),
       valueGetter: (value, row) => {
-          const code = row?.materialCode ? String(row.materialCode).trim().toLowerCase() : '';
-          if (code && stockStateMap[code]) {
-              return stockStateMap[code].available;
+          const key = getMaterialKey(row);
+          if (key && stockStateMap[key]) {
+              return stockStateMap[key].available;
           }
           return calculateStockState(row, rows, materials).available;
       }
@@ -951,12 +1017,12 @@ export default function StockLedger() {
       field: 'totalAvailableQty', 
       headerName: 'Total Avl Q', 
       type: 'number', 
-      width: 100,
+      width: 100, 
       flex: 0.8,
       valueGetter: (value, row) => {
-          const code = row?.materialCode ? String(row.materialCode).trim().toLowerCase() : '';
-          if (code && stockStateMap[code]) {
-              return stockStateMap[code].runningBalance;
+          const key = getMaterialKey(row);
+          if (key && stockStateMap[key]) {
+              return stockStateMap[key].runningBalance;
           }
           return calculateStockState(row, rows, materials).runningBalance;
       }
@@ -1017,23 +1083,27 @@ export default function StockLedger() {
   const handleMobileCodeChange = (e) => {
     const selectedCode = e.target.value;
     
-    const mat = materials.find(m => m.materialCode.toLowerCase() === selectedCode.toLowerCase());
+    const mat = (materials || []).find(m => isSameMaterial(m, { materialCode: selectedCode }, materials));
     const matName = mat ? mat.name : '';
 
     let lastEntry = null;
-    globalAllStockEntries.forEach((row) => {
-      if (row.materialCode && row.materialCode.toLowerCase() === selectedCode.toLowerCase()) {
+    (globalAllStockEntries || []).forEach((row) => {
+      if (isSameMaterial(row, { materialCode: selectedCode, materialName: matName }, materials)) {
         if (!lastEntry || new Date(row.arrivalDate) > new Date(lastEntry.arrivalDate)) {
           lastEntry = row;
         }
       }
     });
 
+    const targetMaterialId = mat?.id || lastEntry?.materialId || lastEntry?.material?.id || null;
+
     setMobileEditingRow(prev => {
       const updated = {
         ...prev,
+        materialId: targetMaterialId,
+        material: targetMaterialId ? { id: targetMaterialId } : null,
         materialCode: selectedCode,
-        materialName: matName || prev?.materialName || ''
+        materialName: matName || lastEntry?.materialName || prev?.materialName || ''
       };
 
       if (lastEntry) {
@@ -1053,10 +1123,26 @@ export default function StockLedger() {
   const handleMobileSave = async () => {
     if (!mobileEditingRow) return;
     
+    let materialId = mobileEditingRow.materialId || (mobileEditingRow.material ? mobileEditingRow.material.id : null);
+    if (!materialId && (mobileEditingRow.materialCode || mobileEditingRow.materialName)) {
+      const matMatch = (materials || []).find(m => isSameMaterial(m, mobileEditingRow, materials));
+      if (matMatch) materialId = matMatch.id;
+      if (!materialId) {
+        const stockMatch = (globalAllStockEntries || []).find(r => isSameMaterial(r, mobileEditingRow, materials));
+        if (stockMatch) materialId = stockMatch.material?.id || stockMatch.materialId;
+      }
+    }
+
+    const rowWithMat = {
+      ...mobileEditingRow,
+      materialId,
+      material: materialId ? { id: materialId } : null
+    };
+
     // Check stock balance before issuing (Out cannot exceed Available Stock)
     const outQty = parseFloat(mobileEditingRow.outgoingQuantity || 0);
     if (outQty > 0) {
-      const stockState = calculateStockState({ ...mobileEditingRow, outgoingQuantity: 0, isNew: true }, globalAllStockEntries);
+      const stockState = calculateStockState({ ...rowWithMat, outgoingQuantity: 0, isNew: true }, globalAllStockEntries, materials);
       const currentAvailable = Math.max(0, stockState.runningBalance);
       if (outQty > currentAvailable) {
         alert(`⚠️ Out of Stock Error!\nMaterial '${mobileEditingRow.materialCode}' currently has only ${currentAvailable} pcs available in store, but you entered Outgoing Qty = ${outQty} pcs.\nMaterial stock cannot be issued beyond available stock!`);
@@ -1065,12 +1151,6 @@ export default function StockLedger() {
     }
 
     try {
-      let materialId = mobileEditingRow.materialId;
-      if (!materialId && mobileEditingRow.materialCode) {
-        const matMatch = materials.find(m => m.materialCode.toLowerCase() === mobileEditingRow.materialCode.toLowerCase());
-        if (matMatch) materialId = matMatch.id;
-      }
-      
       const payload = {
         id: mobileEditingRow.id.startsWith('mat-') ? null : mobileEditingRow.id,
         billNumber: mobileEditingRow.billNumber || '',
@@ -1108,26 +1188,26 @@ export default function StockLedger() {
   };
 
   const handleMobileDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this entry?")) {
+    if (window.confirm("Are you sure you want to move this entry to Trash Bin? You can restore it anytime from Trash Bin.")) {
       try {
         await api.delete(`/api/v1/stock-entries/${id}`);
         fetchData();
       } catch (error) {
         console.error("Delete failed", error);
-        alert("Failed to delete entry.");
+        alert("Failed to delete entry: " + (error.response?.data?.message || error.message));
       }
     }
   };
 
-  // Pre-compute stock balance for each material code to make search typing 100% instant (0ms lag)
+  // Pre-compute stock balance for each material to make search typing 100% instant (0ms lag)
   const stockStateMap = useMemo(() => {
     const map = {};
     const entriesToUse = (rows && rows.length > 0) ? rows : (globalAllStockEntries || []);
     entriesToUse.forEach(r => {
-      if (!r.materialCode) return;
-      const code = String(r.materialCode).trim().toLowerCase();
-      if (!map[code]) {
-        map[code] = calculateStockState(r, entriesToUse, materials);
+      const key = getMaterialKey(r);
+      if (!key) return;
+      if (!map[key]) {
+        map[key] = calculateStockState(r, entriesToUse, materials);
       }
     });
     return map;
@@ -1138,9 +1218,25 @@ export default function StockLedger() {
     if (!rows || !rows.length) return [];
     const q = (searchQuery || '').trim().toLowerCase();
 
+    // Active editing IDs in rowModesModel
+    const activeEditingIds = new Set(
+      Object.keys(rowModesModel || {}).filter(k => rowModesModel[k]?.mode === GridRowModes.Edit)
+    );
+
+    // User requirement: without date entered or "All Data" clicked, do not show any data
+    // EXCEPT: rows currently in edit mode or new rows must ALWAYS be kept so DataGrid never throws MissingRowIdError
+    if (!isAllData && !dateFilter && (!startDate || !endDate)) {
+      return rows.filter(r => r.isNew || activeEditingIds.has(r.id));
+    }
+
     return rows.filter(r => {
-      const codeKey = String(r.materialCode || '').trim().toLowerCase();
-      const stockState = stockStateMap[codeKey] || { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
+      // If row is newly being created or actively in edit mode, ALWAYS show it!
+      if (r.isNew || activeEditingIds.has(r.id)) {
+        return true;
+      }
+
+      const key = getMaterialKey(r);
+      const stockState = stockStateMap[key] || { runningBalance: 0, currentStoreBalance: 0, available: 'NO' };
 
       let matchesAvailability = true;
       if (availabilityFilter === 'YES') {
@@ -1151,17 +1247,15 @@ export default function StockLedger() {
       if (!matchesAvailability) return false;
 
       let matchesDate = true;
-      const entryDateStr = r.issueDate || r.arrivalDate || '';
-      const entryDate = entryDateStr ? String(entryDateStr).substring(0, 10) : '';
-
-      if (startDate && endDate) {
-        matchesDate = entryDate >= startDate && entryDate <= endDate;
-      } else if (dateFilter) {
-        const outQty = parseFloat(r.outgoingQuantity || 0);
-        if (outQty > 0 && r.issueDate) {
-          matchesDate = r.issueDate.startsWith(dateFilter);
-        } else if (r.arrivalDate) {
-          matchesDate = r.arrivalDate.startsWith(dateFilter);
+      if (!isAllData) {
+        if (startDate && endDate) {
+          const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : '';
+          const issDate = r.issueDate ? String(r.issueDate).substring(0, 10) : '';
+          matchesDate = (arrDate && arrDate >= startDate && arrDate <= endDate) || (issDate && issDate >= startDate && issDate <= endDate);
+        } else if (dateFilter) {
+          const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : '';
+          const issDate = r.issueDate ? String(r.issueDate).substring(0, 10) : '';
+          matchesDate = (arrDate && arrDate === dateFilter) || (issDate && issDate === dateFilter);
         } else {
           matchesDate = false;
         }
@@ -1191,7 +1285,7 @@ export default function StockLedger() {
         issDate.includes(q) || length.includes(q) || dia.includes(q) || kgStr.includes(q)
       );
     });
-  }, [rows, searchQuery, availabilityFilter, startDate, endDate, dateFilter, stockStateMap]);
+  }, [rows, searchQuery, availabilityFilter, startDate, endDate, dateFilter, isAllData, stockStateMap, rowModesModel]);
 
   const handleExportCSV = () => {
     const exportData = filteredRows.map(r => {
@@ -1280,7 +1374,7 @@ export default function StockLedger() {
                 }}
                 pageSizeOptions={[25, 50, 100]}
                 slots={{ toolbar: EditToolbar }}
-                slotProps={{ toolbar: { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } }}
+                slotProps={{ toolbar: { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, isAllData, setIsAllData, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } }}
                 sx={{
                    border: 'none',
                    '& .MuiDataGrid-cell': {
@@ -1351,7 +1445,17 @@ export default function StockLedger() {
                     size="small"
                     value={availabilityFilter}
                     exclusive
-                    onChange={(e, val) => val && setAvailabilityFilter(val)}
+                    onChange={(e, val) => {
+                      if (val) {
+                        setAvailabilityFilter(val);
+                        if (val === 'ALL') {
+                          setIsAllData(true);
+                          setDateFilter('');
+                          setStartDate('');
+                          setEndDate('');
+                        }
+                      }
+                    }}
                     color="primary"
                   >
                     <ToggleButton value="ALL" sx={{ px: 1, py: 0.2, fontSize: '0.75rem', fontWeight: 'bold' }}>ALL</ToggleButton>
@@ -1393,16 +1497,24 @@ export default function StockLedger() {
                           value={dateFilter}
                           onChange={(e) => {
                             setDateFilter(e.target.value);
+                            setIsAllData(false);
                             if (e.target.value) { setStartDate(''); setEndDate(''); }
                           }}
                           style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.8rem', width: '100%' }}
                         />
                       </Box>
                       <Button 
-                        variant={(!dateFilter && !startDate && !endDate) ? "contained" : "outlined"} 
-                        color={(!dateFilter && !startDate && !endDate) ? "secondary" : "inherit"}
+                        variant={isAllData ? "contained" : "outlined"} 
+                        color={isAllData ? "secondary" : "inherit"}
                         size="small" 
-                        onClick={() => { setDateFilter(''); setStartDate(''); setEndDate(''); }}
+                        onClick={() => {
+                          setIsAllData(true);
+                          setDateFilter('');
+                          setStartDate('');
+                          setEndDate('');
+                          setAvailabilityFilter('ALL');
+                          setSearchQuery('');
+                        }}
                         sx={{ whiteSpace: 'nowrap', fontWeight: 'bold', px: 1, py: 0.3, fontSize: '0.75rem' }}
                       >
                         All Data
@@ -1416,6 +1528,7 @@ export default function StockLedger() {
                         value={startDate}
                         onChange={(e) => {
                           setStartDate(e.target.value);
+                          setIsAllData(false);
                           if (e.target.value) setDateFilter('');
                         }}
                         style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.75rem', flexGrow: 1 }}
@@ -1426,6 +1539,7 @@ export default function StockLedger() {
                         value={endDate}
                         onChange={(e) => {
                           setEndDate(e.target.value);
+                          setIsAllData(false);
                           if (e.target.value) setDateFilter('');
                         }}
                         style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '0.75rem', flexGrow: 1 }}

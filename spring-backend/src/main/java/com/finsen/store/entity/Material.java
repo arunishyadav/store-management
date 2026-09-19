@@ -26,6 +26,10 @@ public class Material {
     private Location location;
     private boolean active;
 
+    private boolean deleted = false;
+    private java.time.LocalDateTime deletedAt;
+    private String deletedBy;
+
     public Material() {}
     public Material(UUID id, String materialCode, String name, String category, String unit, Double minQuantity, Location location, boolean active) {
         this.id = id; this.materialCode = materialCode; this.name = name; this.category = category; this.unit = unit; this.minQuantity = minQuantity; this.location = location; this.active = active;
@@ -47,4 +51,10 @@ public class Material {
     public void setLocation(Location location) { this.location = location; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public java.time.LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(java.time.LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+    public String getDeletedBy() { return deletedBy; }
+    public void setDeletedBy(String deletedBy) { this.deletedBy = deletedBy; }
 }

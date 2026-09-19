@@ -62,6 +62,15 @@ public class StockEntry {
     @Column(name = "brought_by")
     private String broughtBy;
 
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private java.time.LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    private String deletedBy;
+
     public StockEntry() {}
     public StockEntry(UUID id, String billNumber, Material material, Double arrivalQuantity, LocalDate arrivalDate, LocalTime arrivalTime, String availableInStore, Double outgoingQuantity, LocalDate issueDate, String issuedBy, String storeInchargeName, Double totalAvailableQty, String productLength, String innerDiameter, String kg, String broughtBy, Location location) {
         this.id = id; this.billNumber = billNumber; this.material = material; this.arrivalQuantity = arrivalQuantity; this.arrivalDate = arrivalDate; this.arrivalTime = arrivalTime; this.availableInStore = availableInStore; this.outgoingQuantity = outgoingQuantity; this.issueDate = issueDate; this.issuedBy = issuedBy; this.storeInchargeName = storeInchargeName; this.totalAvailableQty = totalAvailableQty; this.productLength = productLength; this.innerDiameter = innerDiameter; this.kg = kg; this.broughtBy = broughtBy; this.location = location;
@@ -103,6 +112,13 @@ public class StockEntry {
     public void setLocation(Location location) { this.location = location; }
     public String getBroughtBy() { return broughtBy; }
     public void setBroughtBy(String broughtBy) { this.broughtBy = broughtBy; }
+
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public java.time.LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(java.time.LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+    public String getDeletedBy() { return deletedBy; }
+    public void setDeletedBy(String deletedBy) { this.deletedBy = deletedBy; }
 
     @PrePersist
     @PreUpdate

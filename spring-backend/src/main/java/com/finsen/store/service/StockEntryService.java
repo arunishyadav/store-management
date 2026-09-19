@@ -6,6 +6,7 @@ import com.finsen.store.entity.StockEntry;
 import com.finsen.store.repository.LocationRepository;
 import com.finsen.store.repository.MaterialRepository;
 import com.finsen.store.repository.StockEntryRepository;
+import com.finsen.store.repository.TrashItemRepository;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class StockEntryService {
     private final StockEntryRepository stockEntryRepository;
     private final MaterialRepository materialRepository;
     private final LocationRepository locationRepository;
+    private final TrashItemRepository trashItemRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
@@ -33,10 +35,11 @@ public class StockEntryService {
     private jakarta.persistence.EntityManager entityManager;
 
     @Autowired
-    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.PlatformTransactionManager transactionManager) {
+    public StockEntryService(StockEntryRepository stockEntryRepository, MaterialRepository materialRepository, LocationRepository locationRepository, TrashItemRepository trashItemRepository, SimpMessagingTemplate messagingTemplate, EmailService emailService, org.springframework.transaction.PlatformTransactionManager transactionManager) {
         this.stockEntryRepository = stockEntryRepository;
         this.materialRepository = materialRepository;
         this.locationRepository = locationRepository;
+        this.trashItemRepository = trashItemRepository;
         this.messagingTemplate = messagingTemplate;
         this.emailService = emailService;
         this.transactionTemplate = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
@@ -195,7 +198,71 @@ public class StockEntryService {
             String locationName = entry.getLocation() != null ? entry.getLocation().getName() : "Unknown";
             String dataDetails = "Deleted Entry Bill No: " + entry.getBillNumber() + "\nMaterial: " + (entry.getMaterial() != null ? entry.getMaterial().getName() : "N/A");
             
-            stockEntryRepository.delete(entry);
+            String deletedBy = "System";
+            try {
+                org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null && auth.getPrincipal() instanceof User) {
+                    User u = (User) auth.getPrincipal();
+                    deletedBy = u.getFullName() != null && !u.getFullName().trim().isEmpty() ? u.getFullName() : u.getUsername();
+                } else if (auth != null && auth.getName() != null) {
+                    deletedBy = auth.getName();
+                }
+            } catch (Exception ignored) {}
+
+            // Soft-delete the entry
+            entry.setDeleted(true);
+            entry.setDeletedAt(java.time.LocalDateTime.now());
+            entry.setDeletedBy(deletedBy);
+            stockEntryRepository.save(entry);
+
+            // Create TrashItem record
+            try {
+                com.finsen.store.entity.TrashItem trashItem = new com.finsen.store.entity.TrashItem();
+                trashItem.setSourceModule("ENTRY_BOOK");
+                trashItem.setOriginalRecordId(entry.getId().toString());
+                if (entry.getMaterial() != null) {
+                    trashItem.setMaterialCode(entry.getMaterial().getMaterialCode());
+                    trashItem.setMaterialName(entry.getMaterial().getName());
+                    trashItem.setUnit(entry.getMaterial().getUnit());
+                }
+                double out = entry.getOutgoingQuantity() != null ? entry.getOutgoingQuantity() : 0.0;
+                double arr = entry.getArrivalQuantity() != null ? entry.getArrivalQuantity() : 0.0;
+                if (out > 0.0) {
+                    trashItem.setEntryType("OUT");
+                    trashItem.setQuantity(out);
+                    trashItem.setOriginalDate(entry.getIssueDate());
+                    trashItem.setOriginalTime(entry.getIssueTime() != null ? entry.getIssueTime().toString() : null);
+                } else {
+                    trashItem.setEntryType("IN");
+                    trashItem.setQuantity(arr);
+                    trashItem.setOriginalDate(entry.getArrivalDate());
+                    trashItem.setOriginalTime(entry.getArrivalTime() != null ? entry.getArrivalTime().toString() : null);
+                }
+                trashItem.setDeletedAt(java.time.LocalDateTime.now());
+                trashItem.setDeletedBy(deletedBy);
+                trashItem.setLocation(entry.getLocation());
+
+                // Serialized JSON snapshot
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+                java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("id", entry.getId().toString());
+                payload.put("billNumber", entry.getBillNumber());
+                payload.put("arrivalQuantity", entry.getArrivalQuantity());
+                payload.put("outgoingQuantity", entry.getOutgoingQuantity());
+                payload.put("arrivalDate", entry.getArrivalDate() != null ? entry.getArrivalDate().toString() : null);
+                payload.put("arrivalTime", entry.getArrivalTime() != null ? entry.getArrivalTime().toString() : null);
+                payload.put("issueDate", entry.getIssueDate() != null ? entry.getIssueDate().toString() : null);
+                payload.put("issueTime", entry.getIssueTime() != null ? entry.getIssueTime().toString() : null);
+                payload.put("issuedBy", entry.getIssuedBy());
+                payload.put("materialId", materialId != null ? materialId.toString() : null);
+                payload.put("locationId", locationId != null ? locationId.toString() : null);
+                trashItem.setDataPayload(mapper.writeValueAsString(payload));
+
+                trashItemRepository.save(trashItem);
+            } catch (Exception e) {
+                logger.error("Error creating TrashItem for entry {}: {}", entry.getId(), e.getMessage(), e);
+            }
             
             if (materialId != null) {
                 recalculateMaterialStockBalance(materialId, locationId);
@@ -209,7 +276,7 @@ public class StockEntryService {
             
             try {
                 User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                emailService.sendAuditEmail(currentUser, "DELETED", dataDetails, locationName);
+                emailService.sendAuditEmail(currentUser, "MOVED_TO_TRASH", dataDetails, locationName);
             } catch(Exception e) {}
         });
     }
@@ -218,10 +285,18 @@ public class StockEntryService {
     public double recalculateMaterialStockBalance(UUID materialId, UUID locationId) {
         if (materialId == null) return 0.0;
 
-        List<StockEntry> entries = stockEntryRepository.findByMaterialId(materialId);
+        List<StockEntry> rawEntries = stockEntryRepository.findByMaterialId(materialId);
+        if (rawEntries == null || rawEntries.isEmpty()) return 0.0;
 
-        System.out.println("RECALC_DBG: MAT_ID=" + materialId + " | ENTRIES_COUNT=" + (entries != null ? entries.size() : 0));
-        if (entries == null || entries.isEmpty()) return 0.0;
+        // Filter ONLY non-deleted entries for balance calculation
+        List<StockEntry> entries = rawEntries.stream()
+                .filter(e -> !e.isDeleted())
+                .collect(java.util.stream.Collectors.toList());
+
+        System.out.println("RECALC_DBG: MAT_ID=" + materialId + " | ACTIVE_ENTRIES_COUNT=" + entries.size());
+        if (entries.isEmpty()) {
+            return 0.0;
+        }
 
         double totalArrival = 0.0;
         java.util.Map<String, Double> arrivalBatches = new java.util.HashMap<>();

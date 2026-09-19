@@ -11,6 +11,7 @@ import StockLedger from './pages/StockLedger';
 import MISReport from './pages/MISReport';
 import UserManagement from './pages/UserManagement';
 import HelpSupport from './pages/HelpSupport';
+import TrashBin from './pages/TrashBin';
 import BottomNav from './components/BottomNav';
 import AiChatbot from './components/AiChatbot';
 
@@ -63,6 +64,7 @@ const App = () => {
           <Route path="entry-book" element={<StockLedger />} />
           <Route path="materials" element={<Materials />} />
           <Route path="mis-report" element={<MISReport />} />
+          <Route path="trash" element={<TrashBin />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="help" element={<HelpSupport />} />
         </Route>

@@ -9,6 +9,9 @@ import java.util.UUID;
 
 @Repository
 public interface MaterialRepository extends JpaRepository<Material, UUID> {
+    List<Material> findByDeletedFalse();
+    List<Material> findByLocationIdAndDeletedFalse(UUID locationId);
+    List<Material> findByNameContainingIgnoreCaseOrMaterialCodeContainingIgnoreCaseAndDeletedFalse(String name, String code);
     List<Material> findByNameContainingIgnoreCaseOrMaterialCodeContainingIgnoreCase(String name, String code);
     List<Material> findByLocationId(UUID locationId);
 }
