@@ -403,6 +403,45 @@ function NameEditCell(props) {
   );
 }
 
+function DateEditCell(props) {
+  const { id, value, field } = props;
+  const apiRef = useGridApiContext();
+  
+  let strVal = '';
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    strVal = `${year}-${month}-${day}`;
+  } else if (typeof value === 'string') {
+    strVal = value.substring(0, 10);
+  }
+
+  const handleChange = (e) => {
+    apiRef.current.setEditCellValue({ id, field, value: e.target.value });
+  };
+
+  return (
+    <input
+      type="date"
+      value={strVal}
+      onChange={handleChange}
+      autoFocus
+      style={{
+        width: '100%',
+        height: '100%',
+        border: '1px solid #1976d2',
+        borderRadius: '4px',
+        padding: '4px 8px',
+        fontSize: '0.85rem',
+        backgroundColor: '#fff',
+        boxSizing: 'border-box'
+      }}
+    />
+  );
+}
+
+
 function EditToolbar(props) {
   const { setRows, setRowModesModel, searchQuery, setSearchQuery, availabilityFilter, setAvailabilityFilter, startDate, setStartDate, endDate, setEndDate, dateFilter, setDateFilter, isAllData, setIsAllData, handleExportCSV, handlePrintPDF, currentUser, todayStr, lastUsedArrivalDate, setLastUsedArrivalDate } = props;
   const handleClick = () => {
@@ -943,16 +982,18 @@ export default function StockLedger() {
         return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>0</Typography>;
       }
     },
-    { field: 'arrivalDate', headerName: 'Store Arrival Date', type: 'date', width: 130, flex: 0.9, editable: true,
-      valueGetter: (value) => {
-        if (!value) return null;
-        if (typeof value === 'string') {
-          const parts = value.substring(0, 10).split('-');
-          if (parts.length === 3) {
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-          }
-        }
-        return new Date(value);
+    { 
+      field: 'arrivalDate', 
+      headerName: 'Store Arrival Date', 
+      width: 140, 
+      flex: 0.9, 
+      editable: true,
+      renderEditCell: (params) => <DateEditCell {...params} />,
+      renderCell: (params) => {
+        const val = params.value;
+        if (!val) return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>;
+        const strVal = (val instanceof Date && !isNaN(val.getTime())) ? val.toISOString().substring(0, 10) : String(val).substring(0, 10);
+        return <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>{strVal}</Typography>;
       }
     },
     { field: 'arrivalTime', headerName: 'Arrival Time (HH:MM)', width: 120, flex: 0.8, editable: true },
@@ -1004,16 +1045,18 @@ export default function StockLedger() {
         return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>;
       }
     },
-    { field: 'issueDate', headerName: 'Issue Date', type: 'date', width: 120, flex: 0.9, editable: true,
-      valueGetter: (value) => {
-        if (!value) return null;
-        if (typeof value === 'string') {
-          const parts = value.substring(0, 10).split('-');
-          if (parts.length === 3) {
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-          }
-        }
-        return new Date(value);
+    { 
+      field: 'issueDate', 
+      headerName: 'Issue Date', 
+      width: 130, 
+      flex: 0.9, 
+      editable: true,
+      renderEditCell: (params) => <DateEditCell {...params} />,
+      renderCell: (params) => {
+        const val = params.value;
+        if (!val) return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>;
+        const strVal = (val instanceof Date && !isNaN(val.getTime())) ? val.toISOString().substring(0, 10) : String(val).substring(0, 10);
+        return <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>{strVal}</Typography>;
       }
     },
     { field: 'issueTime', headerName: 'Issue Time (HH:MM)', width: 120, flex: 0.8, editable: true },
