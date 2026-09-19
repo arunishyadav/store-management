@@ -329,9 +329,10 @@ public class StockEntryService {
                                 stockEntryRepository.save(se);
                             }
                         }
-                        materialRepository.delete(m);
+                        m.setActive(false);
+                        materialRepository.save(m);
                     } catch (Exception e) {
-                        logger.warn("JPA merge/delete duplicate material {} failed: {}", m.getId(), e.getMessage());
+                        logger.warn("JPA merge/deactivate duplicate material {} failed: {}", m.getId(), e.getMessage());
                     }
                 }
             }

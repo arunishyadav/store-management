@@ -259,13 +259,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             supportContactRepository.save(new SupportContact(null, "Account Head", "Sachin Sir", "9630493830", ""));
             System.out.println("Support Contacts Seeded Successfully!");
         }
-
-        // Always run full stock recalculation on startup/seeding
-        try {
-            stockEntryService.recalculateAllStockEntries();
-        } catch (Exception e) {
-            System.err.println("Seeder stock recalculation warning: " + e.getMessage());
-        }
+        System.out.println("✅ DatabaseSeeder completed successfully.");
         } catch (Exception e) {
             System.err.println("DatabaseSeeder exception caught safely: " + e.getMessage());
         }
