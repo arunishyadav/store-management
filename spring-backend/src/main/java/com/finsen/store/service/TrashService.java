@@ -132,15 +132,32 @@ public class TrashService {
 
         if ("ENTRY_BOOK".equalsIgnoreCase(item.getSourceModule())) {
             try {
-                UUID entryId = UUID.fromString(item.getOriginalRecordId());
-                stockEntryRepository.findById(entryId).ifPresent(stockEntryRepository::delete);
+                if (item.getOriginalRecordId() != null) {
+                    UUID entryId = UUID.fromString(item.getOriginalRecordId());
+                    stockEntryRepository.findById(entryId).ifPresent(stockEntryRepository::delete);
+                }
             } catch (Exception e) {
                 logger.error("Failed to delete underlying StockEntry {}: {}", item.getOriginalRecordId(), e.getMessage());
             }
         } else if ("MATERIAL".equalsIgnoreCase(item.getSourceModule())) {
             try {
-                UUID matId = UUID.fromString(item.getOriginalRecordId());
-                materialRepository.findById(matId).ifPresent(materialRepository::delete);
+                if (item.getOriginalRecordId() != null) {
+                    UUID matId = UUID.fromString(item.getOriginalRecordId());
+                    Material material = materialRepository.findById(matId).orElse(null);
+                    if (material != null) {
+                        List<StockEntry> linkedEntries = stockEntryRepository.findByMaterialId(matId);
+                        if (linkedEntries == null || linkedEntries.isEmpty()) {
+                            materialRepository.delete(material);
+                        } else {
+                            // Linked stock entries exist in the ledger.
+                            // To preserve referential integrity and prevent deleting historical stock entries,
+                            // keep the material permanently soft-deleted in DB while permanently removing from Trash.
+                            material.setDeleted(true);
+                            material.setActive(false);
+                            materialRepository.save(material);
+                        }
+                    }
+                }
             } catch (Exception e) {
                 logger.error("Failed to delete underlying Material {}: {}", item.getOriginalRecordId(), e.getMessage());
             }
