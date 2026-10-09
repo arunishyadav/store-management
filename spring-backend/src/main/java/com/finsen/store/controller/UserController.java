@@ -33,6 +33,9 @@ public class UserController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.finsen.store.service.EmailService emailService;
+
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public List<UserDTO> getAllUsers(Authentication auth, @RequestParam(required = false) UUID locationId) {
@@ -57,17 +60,41 @@ public class UserController {
         Location location = null;
         if (role != Role.SUPER_ADMIN) {
             location = resolveLocation(dto.locationId(), dto.stateName(), dto.siteName());
+            if (location == null) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please specify a valid State and Site Name for this user."));
+            }
+
+            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site
+            final UUID locId = location.getId();
+            final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
+
+            if (role == Role.STORE_INCHARGE) {
+                boolean hasIncharge = userRepository.findAll().stream()
+                    .anyMatch(u -> u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                if (hasIncharge) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
+                }
+            } else if (role == Role.USER) {
+                boolean hasViewer = userRepository.findAll().stream()
+                    .anyMatch(u -> u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                if (hasViewer) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                }
+            }
         }
 
         User user = new User(null, dto.userId(), dto.email(), passwordEncoder.encode(dto.password()), dto.password(), dto.fullName(), role, location, true);
         user = userRepository.save(user);
+
+        // Send login credentials to user's email
+        emailService.sendUserCredentialsEmail(user, dto.password(), "CREATED");
 
         return ResponseEntity.ok(convertToDTO(user));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<UserDTO> updateUser(@PathVariable UUID id, @RequestBody UpdateUserDTO dto) {
+    public ResponseEntity<?> updateUser(@PathVariable UUID id, @RequestBody UpdateUserDTO dto) {
         User user = userRepository.findById(id).orElseThrow();
         
         user.setUserId(dto.userId());
@@ -79,19 +106,47 @@ public class UserController {
             user.setActive(dto.active());
         }
         
+        String plainPassword = user.getVisiblePassword();
         if (dto.password() != null && !dto.password().isBlank()) {
+            plainPassword = dto.password();
             user.setPassword(passwordEncoder.encode(dto.password()));
             user.setVisiblePassword(dto.password());
         }
         
         if (role != Role.SUPER_ADMIN) {
             Location location = resolveLocation(dto.locationId(), dto.stateName(), dto.siteName());
+            if (location == null) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please specify a valid State and Site Name for this user."));
+            }
+
+            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site
+            final UUID locId = location.getId();
+            final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
+
+            if (role == Role.STORE_INCHARGE) {
+                boolean hasIncharge = userRepository.findAll().stream()
+                    .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                if (hasIncharge) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
+                }
+            } else if (role == Role.USER) {
+                boolean hasViewer = userRepository.findAll().stream()
+                    .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                if (hasViewer) {
+                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                }
+            }
+
             user.setLocation(location);
         } else {
             user.setLocation(null);
         }
         
         user = userRepository.save(user);
+
+        // Send updated login credentials to user's email
+        emailService.sendUserCredentialsEmail(user, plainPassword, "UPDATED");
+
         return ResponseEntity.ok(convertToDTO(user));
     }
 

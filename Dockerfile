@@ -10,6 +10,6 @@ RUN rm -rf target && mvn clean package -DskipTests
 # Stage 2: Run the application
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build-backend /app/backend/target/app.jar app.jar
+COPY --from=build-backend /app/backend/target/app.jar /opt/app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-Xmx768m", "-Xms256m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx768m", "-Xms256m", "-jar", "/opt/app.jar"]
