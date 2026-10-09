@@ -3,6 +3,7 @@ package com.finsen.store.controller;
 import com.finsen.store.dto.AuthRequest;
 import com.finsen.store.dto.AuthResponse;
 import com.finsen.store.entity.User;
+import com.finsen.store.entity.Location;
 import com.finsen.store.repository.UserRepository;
 import com.finsen.store.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,13 +70,16 @@ public class AuthController {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateToken(authentication);
 
+        Location loc = user.getLocation();
         return ResponseEntity.ok(new AuthResponse(
                 jwt,
                 user.getUserId(),
                 user.getFullName(),
                 user.getRole().name(),
-                user.getLocation() != null ? user.getLocation().getId() : null,
-                user.getLocation() != null ? user.getLocation().getName() : null
+                loc != null ? loc.getId() : null,
+                loc != null ? loc.getName() : null,
+                loc != null ? loc.getStateName() : null,
+                loc != null ? loc.getSiteName() : null
         ));
     }
 }

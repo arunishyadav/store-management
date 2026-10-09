@@ -89,18 +89,25 @@ const Login = () => {
         
         if (response.data.role !== 'SUPER_ADMIN' && response.data.locationId && response.data.locationName) {
           // STRICT LOCK for non-Super Admin (Store Incharge / User) to assigned DB location
-          finalLocation = { id: response.data.locationId, name: response.data.locationName };
+          finalLocation = { 
+            id: response.data.locationId, 
+            name: response.data.locationName,
+            stateName: response.data.stateName || response.data.locationName,
+            siteName: response.data.siteName || response.data.locationName
+          };
         } else {
           // Super Admin can use selected state or default location
-          finalLocation = locations.find(l => l.id === effectiveStateId) || locations[0] || { id: 'default', name: 'Andhra Pradesh' };
+          finalLocation = locations.find(l => l.id === effectiveStateId) || locations[0] || { id: 'default', name: 'Madhya Pradesh', stateName: 'Madhya Pradesh', siteName: 'Main Site' };
         }
 
         login(response.data.token, { 
           user_id: response.data.userId, 
           name: response.data.fullName, 
           role: response.data.role,
-          location: finalLocation?.name || 'Andhra Pradesh',
-          locationId: finalLocation?.id
+          location: finalLocation?.name || 'Madhya Pradesh',
+          locationId: finalLocation?.id,
+          stateName: finalLocation?.stateName,
+          siteName: finalLocation?.siteName
         });
         
         useAuthStore.getState().updateLocation(finalLocation);

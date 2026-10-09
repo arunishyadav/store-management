@@ -238,19 +238,28 @@ public class DatabaseSeeder implements CommandLineRunner {
             System.err.println("Seeding Narayan warning: " + e.getMessage());
         }
 
-        // Clean up any old auto-provisioned test user accounts in database by deactivating them
+        // Ensure all existing Locations have stateName and siteName populated
         try {
-            List<String> validUserIds = List.of("@finsen-admin", "admin", "Narayan@321", "narayan@321", "arunish@321", "arunish@123", "@finsen-user", "storeadmin", "onlyview@123");
-            userRepository.findAll().stream()
-                    .filter(u -> u.getUserId() != null && !validUserIds.contains(u.getUserId()))
-                    .forEach(u -> {
-                        if (u.isActive()) {
-                            u.setActive(false);
-                            userRepository.save(u);
-                        }
-                    });
+            List<Location> allLocs = locationRepository.findAll();
+            for (Location loc : allLocs) {
+                boolean modified = false;
+                if (loc.getStateName() == null || loc.getStateName().isBlank()) {
+                    loc.setStateName(loc.getName());
+                    modified = true;
+                }
+                if (loc.getSiteName() == null || loc.getSiteName().isBlank()) {
+                    String sName = (loc.getAddress() != null && !loc.getAddress().isBlank()) 
+                        ? loc.getAddress() 
+                        : (loc.getName() != null ? loc.getName() + " Site" : "Main Site");
+                    loc.setSiteName(sName);
+                    modified = true;
+                }
+                if (modified) {
+                    locationRepository.save(loc);
+                }
+            }
         } catch (Exception e) {
-            System.err.println("User deactivation warning: " + e.getMessage());
+            System.err.println("Location state/site migration warning: " + e.getMessage());
         }
 
         // Always ensure Support Contacts exist

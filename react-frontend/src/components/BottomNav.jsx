@@ -1,6 +1,6 @@
 import React from 'react';
 import { Paper, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { TableChart, Inventory, Assessment, People, HelpOutline } from '@mui/icons-material';
+import { TableChart, Inventory, Assessment, People, HelpOutline, DeleteSweep } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 
@@ -31,6 +31,7 @@ const BottomNav = () => {
         <BottomNavigationAction label="Entry" value="/entry-book" icon={<TableChart />} />
         <BottomNavigationAction label="Stock" value="/materials" icon={<Inventory />} />
         <BottomNavigationAction label="MIS" value="/mis-report" icon={<Assessment />} />
+        <BottomNavigationAction label="Trash" value="/trash" icon={<DeleteSweep />} />
         {user?.role === 'SUPER_ADMIN' && (
            <BottomNavigationAction label="Users" value="/users" icon={<People />} />
         )}

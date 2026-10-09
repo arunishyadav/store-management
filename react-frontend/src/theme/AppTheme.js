@@ -102,14 +102,78 @@ export const getAppTheme = (mode = 'light') => createTheme({
         },
       },
     },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          backgroundColor: mode === 'dark' ? '#1E293B' : '#ffffff',
+          color: mode === 'dark' ? '#F8FAFC' : '#1E293B',
+          '& .MuiOutlinedInput-notchedOutline': {
+            borderColor: mode === 'dark' ? '#475569' : '#CBD5E1',
+          },
+          '&:hover .MuiOutlinedInput-notchedOutline': {
+            borderColor: mode === 'dark' ? '#94A3B8' : '#94A3B8',
+          },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: mode === 'dark' ? '#38BDF8' : '#1A365D',
+          },
+          '& input': {
+            color: mode === 'dark' ? '#F8FAFC !important' : '#1E293B !important',
+            '&::placeholder': {
+              color: mode === 'dark' ? '#94A3B8' : '#64748B',
+              opacity: 1,
+            },
+          },
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        root: {
+          color: mode === 'dark' ? '#F8FAFC' : '#1E293B',
+        },
+        input: {
+          color: mode === 'dark' ? '#F8FAFC !important' : '#1E293B !important',
+          '&::placeholder': {
+            color: mode === 'dark' ? '#94A3B8' : '#64748B',
+            opacity: 1,
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          color: mode === 'dark' ? '#94A3B8' : '#64748B',
+          '&.Mui-focused': {
+            color: mode === 'dark' ? '#38BDF8' : '#1A365D',
+          },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        icon: {
+          color: mode === 'dark' ? '#94A3B8' : '#64748B',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+      },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         html: {
+          colorScheme: mode,
           maxWidth: '100vw',
           overflowX: 'hidden',
           WebkitTapHighlightColor: 'transparent',
         },
         body: {
+          colorScheme: mode,
           maxWidth: '100vw',
           overflowX: 'hidden',
           backgroundColor: mode === 'dark' ? '#0F172A' : '#F8FAFC',
@@ -121,6 +185,22 @@ export const getAppTheme = (mode = 'light') => createTheme({
           maxWidth: '100vw',
           overflowX: 'hidden',
           boxSizing: 'border-box',
+        },
+        'input, textarea, select': {
+          colorScheme: mode,
+          color: mode === 'dark' ? '#F8FAFC' : '#1E293B',
+          backgroundColor: mode === 'dark' ? '#1E293B' : '#FFFFFF',
+          borderColor: mode === 'dark' ? '#475569' : '#CBD5E1',
+          '&::placeholder': {
+            color: mode === 'dark' ? '#94A3B8' : '#64748B',
+            opacity: 1,
+          },
+        },
+        'input[type="date"], input[type="time"]': {
+          colorScheme: mode,
+          color: mode === 'dark' ? '#F8FAFC' : '#1E293B',
+          backgroundColor: mode === 'dark' ? '#1E293B' : '#FFFFFF',
+          borderColor: mode === 'dark' ? '#475569' : '#CBD5E1',
         },
       },
     },

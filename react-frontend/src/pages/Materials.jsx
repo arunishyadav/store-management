@@ -5,6 +5,7 @@ import { Add as AddIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Save as
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import { exportToCSV, printPDF } from '../utils/exportUtils';
+import MaterialHistoryModal from '../components/MaterialHistoryModal';
 
 const Materials = () => {
   const [rawMaterials, setRawMaterials] = useState([]);
@@ -18,10 +19,11 @@ const Materials = () => {
   const locationId = useAuthStore(state => state.selectedLocation?.id);
   const currentUser = useAuthStore(state => state.user);
   const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(todayStr); // By default TODAY's date is filled!
-  const [isAllData, setIsAllData] = useState(false); // Only true when "All Data" / "ALL" button is tapped!
+  const [selectedDate, setSelectedDate] = useState(''); // Default empty: all materials visible!
+  const [isAllData, setIsAllData] = useState(true); // By default ALL data is visible so past entries never disappear!
   const [lastUsedDate, setLastUsedDate] = useState(todayStr);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [historyModal, setHistoryModal] = useState({ open: false, mode: 'ARRIVAL', row: null });
   const [open, setOpen] = useState(false);
   const [newMat, setNewMat] = useState({ 
     name: '', code: '', category: 'Hardware', 
@@ -299,7 +301,35 @@ const Materials = () => {
       )
     },
     { field: 'category', headerName: 'Category', minWidth: 120, flex: 1, editable: true },
-    { field: 'arrivalQuantity', headerName: 'Quantity', type: 'number', minWidth: 100, flex: 0.8, editable: false },
+    { 
+      field: 'arrivalQuantity', 
+      headerName: 'Quantity', 
+      type: 'number', 
+      minWidth: 100, 
+      flex: 0.8, 
+      editable: false,
+      renderCell: (params) => {
+        const val = parseFloat(params.value || 0);
+        return (
+          <Tooltip title="Click to view full arrival/inward history (Date, Time, Qty, Lane Wala)">
+            <Box
+              onClick={(e) => {
+                e.stopPropagation();
+                setHistoryModal({ open: true, mode: 'ARRIVAL', row: params.row });
+              }}
+              sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}
+            >
+              <Chip
+                label={`+${val}`}
+                color="success"
+                size="small"
+                sx={{ fontWeight: 'bold', fontSize: '0.78rem', cursor: 'pointer', '&:hover': { filter: 'brightness(0.9)' } }}
+              />
+            </Box>
+          </Tooltip>
+        );
+      }
+    },
     { field: 'arrivalDate', headerName: 'Arrival Date & Time', minWidth: 170, flex: 1.3, editable: false },
     { 
       field: 'laneWalaName', 
@@ -315,7 +345,35 @@ const Materials = () => {
         </Tooltip>
       )
     },
-    { field: 'nowQuantity', headerName: 'Now Quantity', type: 'number', minWidth: 110, flex: 0.9, editable: false },
+    { 
+      field: 'nowQuantity', 
+      headerName: 'Now Quantity', 
+      type: 'number', 
+      minWidth: 110, 
+      flex: 0.9, 
+      editable: false,
+      renderCell: (params) => {
+        const val = parseFloat(params.value || 0);
+        return (
+          <Tooltip title="Click to view all inward & outgoing transaction history">
+            <Box
+              onClick={(e) => {
+                e.stopPropagation();
+                setHistoryModal({ open: true, mode: 'OUTGOING', row: params.row });
+              }}
+              sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}
+            >
+              <Chip
+                label={`${val}`}
+                color={val > 0 ? "primary" : "default"}
+                size="small"
+                sx={{ fontWeight: 'bold', fontSize: '0.78rem', cursor: 'pointer', '&:hover': { filter: 'brightness(0.9)' } }}
+              />
+            </Box>
+          </Tooltip>
+        );
+      }
+    },
     {
       field: 'availableInStore',
       headerName: 'Available In Store',
@@ -575,7 +633,7 @@ const Materials = () => {
             placeholder="Search code, name, category..."
             value={mobileSearch}
             onChange={(e) => setMobileSearch(e.target.value)}
-            sx={{ minWidth: '240px', backgroundColor: '#fff' }}
+            sx={{ minWidth: '240px' }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -668,8 +726,8 @@ const Materials = () => {
                 sx={{
                   border: 0,
                   '& .MuiDataGrid-columnHeaders': {
-                    backgroundColor: '#f5f7fa',
-                    borderBottom: '1px solid #e0e0e0',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#0f172a' : '#f5f7fa',
+                    borderBottom: (theme) => theme.palette.mode === 'dark' ? '1px solid #334155' : '1px solid #e0e0e0',
                   },
                 }}
               />
@@ -680,15 +738,15 @@ const Materials = () => {
               {/* Sticky Mobile Toolbar */}
               <Box sx={{ 
                 p: 1.2, 
-                borderBottom: '1px solid #e2e8f0', 
+                borderBottom: (theme) => theme.palette.mode === 'dark' ? '1px solid #334155' : '1px solid #e2e8f0', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: 1, 
-                backgroundColor: '#ffffff',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                boxShadow: (theme) => theme.palette.mode === 'dark' ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.06)'
               }}>
                 {/* Row 1: Search + Filters Toggle */}
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -850,13 +908,33 @@ const Materials = () => {
                         <Grid container spacing={1} sx={{ mt: 0.5 }}>
                           <Grid item xs={6}>
                             <Typography variant="caption" color="text.secondary" display="block">Total Arrival</Typography>
-                            <Typography variant="body2" fontWeight="bold">{row.arrivalQuantity || 0}</Typography>
+                            <Box
+                              onClick={() => setHistoryModal({ open: true, mode: 'ARRIVAL', row })}
+                              sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', mt: 0.2 }}
+                            >
+                              <Chip
+                                label={`+${row.arrivalQuantity || 0}`}
+                                color="success"
+                                size="small"
+                                sx={{ fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}
+                              />
+                              <Typography variant="caption" color="primary.main" sx={{ ml: 0.5, textDecoration: 'underline' }}>View</Typography>
+                            </Box>
                           </Grid>
                           <Grid item xs={6}>
                             <Typography variant="caption" color="text.secondary" display="block">Now Quantity (Balance)</Typography>
-                            <Typography variant="body2" fontWeight="bold" color={row.nowQuantity > 0 ? 'success.main' : 'error.main'}>
-                              {row.nowQuantity || 0}
-                            </Typography>
+                            <Box
+                              onClick={() => setHistoryModal({ open: true, mode: 'OUTGOING', row })}
+                              sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', mt: 0.2 }}
+                            >
+                              <Chip
+                                label={`${row.nowQuantity || 0}`}
+                                color={row.nowQuantity > 0 ? 'success' : 'error'}
+                                size="small"
+                                sx={{ fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}
+                              />
+                              <Typography variant="caption" color="primary.main" sx={{ ml: 0.5, textDecoration: 'underline' }}>History</Typography>
+                            </Box>
                           </Grid>
                           <Grid item xs={6}>
                             <Typography variant="caption" color="text.secondary" display="block">Arrival Date & Time</Typography>
@@ -1017,6 +1095,16 @@ const Materials = () => {
               <Button onClick={handleAddSubmit} variant="contained" disabled={!newMat.code || !newMat.name}>Add Material & Entry</Button>
           </DialogActions>
       </Dialog>
+
+      {/* Arrival & Outgoing Transaction History Modal */}
+      <MaterialHistoryModal
+        open={historyModal.open}
+        onClose={() => setHistoryModal(prev => ({ ...prev, open: false }))}
+        initialTab={historyModal.mode}
+        materialRow={historyModal.row}
+        allStockEntries={rawStockEntries}
+        masterMaterials={rawMaterials}
+      />
     </Box>
   );
 };

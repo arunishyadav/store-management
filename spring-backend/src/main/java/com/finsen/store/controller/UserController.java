@@ -53,12 +53,12 @@ public class UserController {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", "User ID already exists. Please choose a different User ID."));
         }
 
+        Role role = Role.valueOf(dto.role());
         Location location = null;
-        if (dto.locationId() != null) {
-            location = locationRepository.findById(dto.locationId()).orElse(null);
+        if (role != Role.SUPER_ADMIN) {
+            location = resolveLocation(dto.locationId(), dto.stateName(), dto.siteName());
         }
 
-        Role role = Role.valueOf(dto.role());
         User user = new User(null, dto.userId(), dto.email(), passwordEncoder.encode(dto.password()), dto.password(), dto.fullName(), role, location, true);
         user = userRepository.save(user);
 
@@ -73,7 +73,8 @@ public class UserController {
         user.setUserId(dto.userId());
         user.setEmail(dto.email());
         user.setFullName(dto.fullName());
-        user.setRole(Role.valueOf(dto.role()));
+        Role role = Role.valueOf(dto.role());
+        user.setRole(role);
         if (dto.active() != null) {
             user.setActive(dto.active());
         }
@@ -83,8 +84,8 @@ public class UserController {
             user.setVisiblePassword(dto.password());
         }
         
-        if (dto.locationId() != null) {
-            Location location = locationRepository.findById(dto.locationId()).orElse(null);
+        if (role != Role.SUPER_ADMIN) {
+            Location location = resolveLocation(dto.locationId(), dto.stateName(), dto.siteName());
             user.setLocation(location);
         } else {
             user.setLocation(null);
@@ -131,7 +132,55 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+    private Location resolveLocation(UUID locationId, String stateName, String siteName) {
+        if (stateName != null && !stateName.isBlank() && siteName != null && !siteName.isBlank()) {
+            final String cleanState = stateName.trim();
+            final String cleanSite = siteName.trim();
+
+            // Look for existing Location where state and site match (case-insensitive)
+            Location existing = locationRepository.findAll().stream()
+                .filter(l -> (l.getStateName() != null && l.getStateName().equalsIgnoreCase(cleanState))
+                          && (l.getSiteName() != null && l.getSiteName().equalsIgnoreCase(cleanSite)))
+                .findFirst()
+                .orElse(null);
+
+            if (existing != null) {
+                return existing;
+            }
+
+            // Also check if any existing location has name matching cleanState and site is "Main Site" or cleanState
+            if (cleanSite.equalsIgnoreCase("Main Site") || cleanSite.equalsIgnoreCase(cleanState) || cleanSite.equalsIgnoreCase(cleanState + " Site")) {
+                Location stateLoc = locationRepository.findAll().stream()
+                    .filter(l -> l.getName() != null && l.getName().equalsIgnoreCase(cleanState))
+                    .findFirst()
+                    .orElse(null);
+                if (stateLoc != null) {
+                    stateLoc.setStateName(cleanState);
+                    stateLoc.setSiteName(cleanSite);
+                    return locationRepository.save(stateLoc);
+                }
+            }
+
+            // Create a new Location for this site under cleanState
+            String combinedName = cleanSite + " (" + cleanState + ")";
+            String stateCode = cleanState.length() >= 3 ? cleanState.substring(0, 3).toUpperCase() : cleanState.toUpperCase();
+            String siteCode = cleanSite.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+            if (siteCode.length() > 3) siteCode = siteCode.substring(0, 3);
+            String fullCode = stateCode + (siteCode.isEmpty() ? "" : "-" + siteCode);
+
+            Location newLoc = new Location(null, combinedName, fullCode, cleanSite + ", " + cleanState, cleanState, cleanSite, true);
+            return locationRepository.save(newLoc);
+        }
+
+        if (locationId != null) {
+            return locationRepository.findById(locationId).orElse(null);
+        }
+
+        return null;
+    }
+
     private UserDTO convertToDTO(User user) {
+        Location loc = user.getLocation();
         return new UserDTO(
             user.getId(),
             user.getUserId(),
@@ -139,8 +188,10 @@ public class UserController {
             user.getVisiblePassword(),
             user.getFullName(),
             user.getRole().name(),
-            user.getLocation() != null ? user.getLocation().getId() : null,
-            user.getLocation() != null ? user.getLocation().getName() : null,
+            loc != null ? loc.getId() : null,
+            loc != null ? loc.getName() : null,
+            loc != null ? loc.getStateName() : null,
+            loc != null ? loc.getSiteName() : null,
             user.isActive()
         );
     }

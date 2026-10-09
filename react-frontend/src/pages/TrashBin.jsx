@@ -56,13 +56,15 @@ const TrashBin = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   const user = useAuthStore((state) => state.user);
-  const locationId = user?.location?.id;
+  const selectedLocation = useAuthStore((state) => state.selectedLocation);
+  const locationId = selectedLocation?.id || (user?.locationId ? user.locationId : null);
+  const [showAllLocations, setShowAllLocations] = useState(false);
 
   const fetchTrashItems = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (locationId && user?.role !== 'SUPER_ADMIN') {
+      if (locationId && !showAllLocations) {
         params.locationId = locationId;
       }
       const response = await api.get('/api/v1/trash', { params });
@@ -78,7 +80,7 @@ const TrashBin = () => {
 
   useEffect(() => {
     fetchTrashItems();
-  }, [locationId]);
+  }, [locationId, showAllLocations]);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -91,6 +93,15 @@ const TrashBin = () => {
   // Filter items
   const filteredItems = useMemo(() => {
     return trashItems.filter((item) => {
+      // Strict Location filter: only show items matching current site unless "Show All Sites" is toggled
+      if (!showAllLocations && locationId) {
+        if (item.location?.id && String(item.location.id) !== String(locationId)) {
+          return false;
+        }
+        if (selectedLocation?.name && item.location?.name && item.location.name.trim().toLowerCase() !== selectedLocation.name.trim().toLowerCase()) {
+          return false;
+        }
+      }
       // Module filter
       if (filterModule !== 'ALL' && item.sourceModule !== filterModule) {
         return false;
@@ -105,7 +116,7 @@ const TrashBin = () => {
       const date = (item.originalDate || '').toLowerCase();
       return code.includes(q) || name.includes(q) || user.includes(q) || loc.includes(q) || date.includes(q);
     });
-  }, [trashItems, filterModule, searchQuery]);
+  }, [trashItems, filterModule, searchQuery, locationId, showAllLocations, selectedLocation]);
 
   // Checkbox handlers
   const handleSelectAll = (event) => {
@@ -227,27 +238,55 @@ const TrashBin = () => {
           <Box display="flex" alignItems="center" gap={1.5}>
             <TrashIcon sx={{ fontSize: { xs: 32, sm: 40 }, color: '#f87171' }} />
             <Box>
-              <Typography variant="h5" fontWeight="bold" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-                Trash Bin / Recycle Bin
-              </Typography>
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                <Typography variant="h5" fontWeight="bold" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
+                  Trash Bin / Recycle Bin
+                </Typography>
+                <Chip
+                  label={`SITE: ${selectedLocation?.siteName || selectedLocation?.name || user?.siteName || user?.location || 'Main Site'}`}
+                  color="primary"
+                  size="small"
+                  sx={{ fontWeight: 'bold', fontSize: '0.75rem', height: 22 }}
+                />
+              </Box>
               <Typography variant="body2" sx={{ color: '#cbd5e1', mt: 0.5 }}>
                 Deleted records from Entry Book and Materials. Restore items anytime or delete permanently.
               </Typography>
             </Box>
           </Box>
-          <Button
-            variant="outlined"
-            onClick={fetchTrashItems}
-            startIcon={<RefreshIcon />}
-            disabled={loading}
-            sx={{
-              color: 'white',
-              borderColor: 'rgba(255,255,255,0.3)',
-              '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            Refresh
-          </Button>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {user?.role === 'SUPER_ADMIN' && (
+              <Button
+                variant={showAllLocations ? "contained" : "outlined"}
+                color={showAllLocations ? "warning" : "inherit"}
+                size="small"
+                onClick={() => setShowAllLocations(!showAllLocations)}
+                sx={{
+                  color: 'white',
+                  borderColor: 'rgba(255,255,255,0.4)',
+                  fontWeight: 'bold',
+                  fontSize: '0.75rem',
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {showAllLocations ? "Showing All Sites" : `Show All Sites`}
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              onClick={fetchTrashItems}
+              startIcon={<RefreshIcon />}
+              disabled={loading}
+              sx={{
+                color: 'white',
+                borderColor: 'rgba(255,255,255,0.3)',
+                '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }
+              }}
+            >
+              Refresh
+            </Button>
+          </Stack>
         </Stack>
       </Paper>
 
@@ -359,7 +398,7 @@ const TrashBin = () => {
           {/* Desktop Table View */}
           <TableContainer component={Paper} elevation={1} sx={{ display: { xs: 'none', md: 'block' }, borderRadius: 2 }}>
             <Table size="small">
-              <TableHead sx={{ backgroundColor: '#f8fafc' }}>
+              <TableHead sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#0f172a' : '#f8fafc' }}>
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox

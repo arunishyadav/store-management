@@ -8,5 +8,11 @@ public record CreateUserDTO(
     String password,
     String fullName,
     String role,
-    UUID locationId
-) {}
+    UUID locationId,
+    String stateName,
+    String siteName
+) {
+    public CreateUserDTO(String userId, String email, String password, String fullName, String role, UUID locationId) {
+        this(userId, email, password, fullName, role, locationId, null, null);
+    }
+}

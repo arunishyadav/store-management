@@ -2,4 +2,17 @@ package com.finsen.store.dto;
 
 import java.util.UUID;
 
-public record AuthResponse(String token, String userId, String fullName, String role, UUID locationId, String locationName) {}
+public record AuthResponse(
+    String token,
+    String userId,
+    String fullName,
+    String role,
+    UUID locationId,
+    String locationName,
+    String stateName,
+    String siteName
+) {
+    public AuthResponse(String token, String userId, String fullName, String role, UUID locationId, String locationName) {
+        this(token, userId, fullName, role, locationId, locationName, locationName, locationName);
+    }
+}

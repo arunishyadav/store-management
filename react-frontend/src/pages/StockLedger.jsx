@@ -6,6 +6,7 @@ import api from '../services/api';
 import { v4 as uuidv4 } from 'uuid';
 import useAuthStore from '../store/authStore';
 import { exportToCSV, printPDF } from '../utils/exportUtils';
+import MaterialHistoryModal from '../components/MaterialHistoryModal';
 
 const initialRow = {
   id: '',
@@ -375,7 +376,7 @@ function AutocompleteEditCell(props) {
            placeholder="Type to search..."
            size="small" 
            variant="outlined" 
-           sx={{ backgroundColor: '#fff', minWidth: 200 }}
+           sx={{ minWidth: 200 }}
         />
       )}
       fullWidth
@@ -398,7 +399,7 @@ function NameEditCell(props) {
       autoFocus
       size="small"
       variant="outlined"
-      sx={{ backgroundColor: '#fff', width: '100%' }}
+      sx={{ width: '100%' }}
     />
   );
 }
@@ -434,7 +435,6 @@ function DateEditCell(props) {
         borderRadius: '4px',
         padding: '4px 8px',
         fontSize: '0.85rem',
-        backgroundColor: '#fff',
         boxSizing: 'border-box'
       }}
     />
@@ -604,11 +604,11 @@ export default function StockLedger() {
   const [rows, setRows] = useState([]);
   const [rowModesModel, setRowModesModel] = useState({});
   const [materials, setMaterials] = useState([]);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [dateFilter, setDateFilter] = useState(todayStr); // By default TODAY's date is filled!
-  const [isAllData, setIsAllData] = useState(false); // Only true when "All Data" / "ALL" button is tapped!
+  const [dateFilter, setDateFilter] = useState(''); // Default empty: all entries visible!
+  const [isAllData, setIsAllData] = useState(true); // By default ALL data is visible so past entries never disappear!
   const [lastUsedArrivalDate, setLastUsedArrivalDate] = useState('');
   const [lastUsedIssueDate, setLastUsedIssueDate] = useState('');
+  const [historyModal, setHistoryModal] = useState({ open: false, mode: 'ARRIVAL', row: null });
   const [loading, setLoading] = useState(false);
   const locationId = useAuthStore(state => state.selectedLocation?.id);
   const currentUser = useAuthStore(state => state.user);
@@ -634,13 +634,15 @@ export default function StockLedger() {
       }));
 
       mapped.sort((a, b) => {
-        const dateA = String(a.issueDate || a.arrivalDate || '');
-        const dateB = String(b.issueDate || b.arrivalDate || '');
+        const isIssueA = parseFloat(a.outgoingQuantity || 0) > 0 || (!parseFloat(a.arrivalQuantity || 0) && a.issueDate);
+        const dateA = String((isIssueA ? a.issueDate : a.arrivalDate) || '');
+        const isIssueB = parseFloat(b.outgoingQuantity || 0) > 0 || (!parseFloat(b.arrivalQuantity || 0) && b.issueDate);
+        const dateB = String((isIssueB ? b.issueDate : b.arrivalDate) || '');
         if (dateA !== dateB) {
           return dateB.localeCompare(dateA);
         }
-        const timeA = String(a.issueTime || a.arrivalTime || '');
-        const timeB = String(b.issueTime || b.arrivalTime || '');
+        const timeA = String((isIssueA ? a.issueTime : a.arrivalTime) || '');
+        const timeB = String((isIssueB ? b.issueTime : b.arrivalTime) || '');
         return timeB.localeCompare(timeA);
       });
       
@@ -956,30 +958,36 @@ export default function StockLedger() {
       },
       renderCell: (params) => {
         const arrVal = parseFloat(params.row.arrivalQuantity || 0);
-        if (arrVal > 0) {
-          return (
-            <Chip 
-              label={`+${arrVal}`} 
-              color="success" 
-              size="small" 
-              sx={{ fontWeight: 'bold', fontSize: '0.78rem' }} 
-            />
-          );
-        }
         const totalArr = getMaterialTotalArrival(params.row, globalAllStockEntries, materials);
-        if (totalArr > 0) {
-          return (
-            <Tooltip title="Total stock arrived for this material across all arrival batches">
-              <Box display="flex" alignItems="center" gap={0.5}>
-                <Typography variant="body2" fontWeight="bold" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
-                  {totalArr}
-                </Typography>
-                <Chip label="Total" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
-              </Box>
-            </Tooltip>
-          );
-        }
-        return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>0</Typography>;
+        return (
+          <Tooltip title="Click to view full arrival/inward history (Date, Time, Qty, Lane Wala)">
+            <Box
+              onClick={(e) => {
+                e.stopPropagation();
+                setHistoryModal({ open: true, mode: 'ARRIVAL', row: params.row });
+              }}
+              sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}
+            >
+              {arrVal > 0 ? (
+                <Chip 
+                  label={`+${arrVal}`} 
+                  color="success" 
+                  size="small" 
+                  sx={{ fontWeight: 'bold', fontSize: '0.78rem', cursor: 'pointer', '&:hover': { filter: 'brightness(0.9)' } }} 
+                />
+              ) : totalArr > 0 ? (
+                <Box display="flex" alignItems="center" gap={0.5}>
+                  <Typography variant="body2" fontWeight="bold" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
+                    {totalArr}
+                  </Typography>
+                  <Chip label="Total" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', cursor: 'pointer' }} />
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>0</Typography>
+              )}
+            </Box>
+          </Tooltip>
+        );
       }
     },
     { 
@@ -1032,17 +1040,28 @@ export default function StockLedger() {
       editable: true,
       renderCell: (params) => {
         const outVal = parseFloat(params.value || 0);
-        if (outVal > 0) {
-          return (
-            <Chip 
-              label={`-${outVal}`} 
-              color="warning" 
-              size="small" 
-              sx={{ fontWeight: 'bold', fontSize: '0.78rem' }} 
-            />
-          );
-        }
-        return <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>;
+        return (
+          <Tooltip title="Click to view full outgoing/issue history (Date, Time, Qty, Issued By)">
+            <Box
+              onClick={(e) => {
+                e.stopPropagation();
+                setHistoryModal({ open: true, mode: 'OUTGOING', row: params.row });
+              }}
+              sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}
+            >
+              {outVal > 0 ? (
+                <Chip 
+                  label={`-${outVal}`} 
+                  color="warning" 
+                  size="small" 
+                  sx={{ fontWeight: 'bold', fontSize: '0.78rem', cursor: 'pointer', '&:hover': { filter: 'brightness(0.9)' } }} 
+                />
+              ) : (
+                <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.82rem' }}>-</Typography>
+              )}
+            </Box>
+          </Tooltip>
+        );
       }
     },
     { 
@@ -1335,14 +1354,20 @@ export default function StockLedger() {
 
       let matchesDate = true;
       if (!isAllData) {
+        const out = parseFloat(r.outgoingQuantity || 0);
+        const arr = parseFloat(r.arrivalQuantity || 0);
+        const isIssue = out > 0 || (arr === 0 && r.issueDate);
+        
+        // Effective transaction date of this specific entry
+        // Issues belong ONLY on issueDate; Arrivals belong ONLY on arrivalDate!
+        const entryTxDate = isIssue
+          ? (r.issueDate ? String(r.issueDate).substring(0, 10) : '')
+          : (r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : '');
+
         if (startDate && endDate) {
-          const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : '';
-          const issDate = r.issueDate ? String(r.issueDate).substring(0, 10) : '';
-          matchesDate = (arrDate && arrDate >= startDate && arrDate <= endDate) || (issDate && issDate >= startDate && issDate <= endDate);
+          matchesDate = Boolean(entryTxDate && entryTxDate >= startDate && entryTxDate <= endDate);
         } else if (dateFilter) {
-          const arrDate = r.arrivalDate ? String(r.arrivalDate).substring(0, 10) : '';
-          const issDate = r.issueDate ? String(r.issueDate).substring(0, 10) : '';
-          matchesDate = (arrDate && arrDate === dateFilter) || (issDate && issDate === dateFilter);
+          matchesDate = Boolean(entryTxDate && entryTxDate === dateFilter);
         } else {
           matchesDate = false;
         }
@@ -1484,15 +1509,15 @@ export default function StockLedger() {
               {/* Sticky Mobile Toolbar */}
               <Box sx={{ 
                 p: 1.2, 
-                borderBottom: '1px solid #e2e8f0', 
+                borderBottom: (theme) => theme.palette.mode === 'dark' ? '1px solid #334155' : '1px solid #e2e8f0', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: 1, 
-                backgroundColor: '#ffffff',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                boxShadow: (theme) => theme.palette.mode === 'dark' ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.06)'
               }}>
                 {/* Row 1: Search + Filters Toggle Button */}
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -1672,13 +1697,33 @@ export default function StockLedger() {
                           <Grid container spacing={1} sx={{ mt: 0.5 }}>
                             <Grid item xs={6}>
                               <Typography variant="caption" color="text.secondary" display="block">Arrival Qty</Typography>
-                              <Typography variant="body2" fontWeight="bold">{row.arrivalQuantity || 0}</Typography>
+                              <Box
+                                onClick={() => setHistoryModal({ open: true, mode: 'ARRIVAL', row })}
+                                sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', mt: 0.2 }}
+                              >
+                                <Chip
+                                  label={`+${row.arrivalQuantity || 0}`}
+                                  color="success"
+                                  size="small"
+                                  sx={{ fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}
+                                />
+                                <Typography variant="caption" color="primary.main" sx={{ ml: 0.5, textDecoration: 'underline' }}>View</Typography>
+                              </Box>
                             </Grid>
                             <Grid item xs={6}>
                               <Typography variant="caption" color="text.secondary" display="block">Outgoing Qty (Out)</Typography>
-                              <Typography variant="body2" fontWeight="bold" color={row.outgoingQuantity > 0 ? 'error.main' : 'text.primary'}>
-                                {row.outgoingQuantity || 0}
-                              </Typography>
+                              <Box
+                                onClick={() => setHistoryModal({ open: true, mode: 'OUTGOING', row })}
+                                sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', mt: 0.2 }}
+                              >
+                                <Chip
+                                  label={`-${row.outgoingQuantity || 0}`}
+                                  color={parseFloat(row.outgoingQuantity || 0) > 0 ? "warning" : "default"}
+                                  size="small"
+                                  sx={{ fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}
+                                />
+                                <Typography variant="caption" color="warning.main" sx={{ ml: 0.5, textDecoration: 'underline' }}>View</Typography>
+                              </Box>
                             </Grid>
                             <Grid item xs={6}>
                               <Typography variant="caption" color="text.secondary" display="block">Arrival Date & Time</Typography>
@@ -1855,8 +1900,8 @@ export default function StockLedger() {
               />
 
               {/* Section 1: Item & Arrival Info */}
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: '#f8fafc' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1e293b', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc', borderColor: (theme) => theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? '#38bdf8' : '#1e293b', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                   📦 Item & Arrival Details
                 </Typography>
                 <Grid container spacing={1.5}>
@@ -1931,8 +1976,8 @@ export default function StockLedger() {
               </Paper>
 
               {/* Section 2: Outgoing / Issue Details */}
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: '#fef2f2', borderColor: '#fca5a5' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#991b1b', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#271919' : '#fef2f2', borderColor: (theme) => theme.palette.mode === 'dark' ? '#7f1d1d' : '#fca5a5' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? '#f87171' : '#991b1b', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                   📤 Issue Details (Outgoing)
                 </Typography>
                 <Grid container spacing={1.5}>
@@ -1970,8 +2015,8 @@ export default function StockLedger() {
               </Paper>
 
               {/* Section 3: Physical Specifications */}
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: '#f8fafc' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#475569', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc', borderColor: (theme) => theme.palette.mode === 'dark' ? '#334155' : '#e2e8f0' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? '#94a3b8' : '#475569', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                   📐 Product Physical Specifications
                 </Typography>
                 <Grid container spacing={1.5}>
@@ -2012,6 +2057,16 @@ export default function StockLedger() {
           <Button onClick={handleMobileSave} variant="contained" color="primary" sx={{ px: 3, fontWeight: 'bold' }}>Save Record</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Arrival & Outgoing Transaction History Modal */}
+      <MaterialHistoryModal
+        open={historyModal.open}
+        onClose={() => setHistoryModal(prev => ({ ...prev, open: false }))}
+        initialTab={historyModal.mode}
+        materialRow={historyModal.row}
+        allStockEntries={rows}
+        masterMaterials={materials}
+      />
     </Box>
   );
 }

@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Typography, Button, Paper, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Alert, Card, CardContent, Chip, useMediaQuery, useTheme, Autocomplete } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { Person as PersonIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Lock as LockIcon, Email as EmailIcon, LocationOn as LocationIcon } from '@mui/icons-material';
+import { Person as PersonIcon, Edit as EditIcon, DeleteOutlined as DeleteIcon, Lock as LockIcon, Email as EmailIcon, LocationOn as LocationIcon, Business as BusinessIcon } from '@mui/icons-material';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", 
+  "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", 
+  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", 
+  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+];
 
 export default function UserManagement() {
   const theme = useTheme();
@@ -17,7 +24,17 @@ export default function UserManagement() {
   const [isEditing, setIsEditing] = useState(false);
   
   // New/Edit user form state
-  const [userForm, setUserForm] = useState({ userId: '', email: '', password: '', fullName: '', role: 'USER', locationId: '', active: true });
+  const [userForm, setUserForm] = useState({ 
+    userId: '', 
+    email: '', 
+    password: '', 
+    fullName: '', 
+    role: 'STORE_INCHARGE', 
+    locationId: '', 
+    stateName: 'Madhya Pradesh', 
+    siteName: 'Main Site', 
+    active: true 
+  });
   const [error, setError] = useState('');
 
   const currentLocation = useAuthStore(state => state.selectedLocation);
@@ -51,16 +68,48 @@ export default function UserManagement() {
         fullName: user.fullName,
         role: user.role,
         locationId: user.locationId || '',
+        stateName: user.stateName || user.locationName || 'Madhya Pradesh',
+        siteName: user.siteName || 'Main Site',
         active: user.active
       });
     } else {
       setIsEditing(false);
       setSelectedUser(null);
-      setUserForm({ userId: '', email: '', password: '', fullName: '', role: 'USER', locationId: currentLocation.id, active: true });
+      const curState = currentLocation?.stateName || currentLocation?.name || 'Madhya Pradesh';
+      const curSite = currentLocation?.siteName || 'Main Site';
+      setUserForm({ 
+        userId: '', 
+        email: '', 
+        password: '', 
+        fullName: '', 
+        role: 'STORE_INCHARGE', 
+        locationId: currentLocation?.id || '', 
+        stateName: curState, 
+        siteName: curSite, 
+        active: true 
+      });
     }
     setOpenUserDialog(true);
     setError('');
   };
+
+  const existingSitesForState = useMemo(() => {
+    if (!userForm.stateName) return ['Main Site'];
+    const siteSet = new Set(['Main Site']);
+    locations.forEach(loc => {
+      const s = loc.stateName || loc.name;
+      if (s && s.toLowerCase() === userForm.stateName.toLowerCase()) {
+        if (loc.siteName && loc.siteName.trim()) siteSet.add(loc.siteName.trim());
+      }
+    });
+    users.forEach(u => {
+      const s = u.stateName || u.locationName;
+      if (s && s.toLowerCase() === userForm.stateName.toLowerCase()) {
+        if (u.siteName && u.siteName.trim()) siteSet.add(u.siteName.trim());
+      }
+    });
+    return Array.from(siteSet);
+  }, [locations, users, userForm.stateName]);
 
   const handleSaveUser = async () => {
     try {
@@ -71,6 +120,8 @@ export default function UserManagement() {
       }
       setOpenUserDialog(false);
       fetchData();
+      // Also refresh locations so new sites are reflected
+      api.get('/api/v1/locations').then(res => setLocations(res.data)).catch(console.error);
     } catch (err) {
       setError(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} user`);
     }
@@ -95,20 +146,39 @@ export default function UserManagement() {
     { 
       field: 'role', 
       headerName: 'Role', 
-      width: 240, 
+      width: 220, 
       renderCell: (params) => {
         if (params.value === 'USER') return 'Viewer (Only View)';
-        if (params.value === 'STORE_INCHARGE') return 'Store Incharge (Add/Edit Entries)';
+        if (params.value === 'STORE_INCHARGE') return 'Store Incharge (Add/Edit)';
         if (params.value === 'SUPER_ADMIN') return 'Admin (Full Access)';
         return params.value;
       }
     },
-    { field: 'locationName', headerName: 'Assigned State', width: 160 },
+    { 
+      field: 'stateName', 
+      headerName: 'State (Location)', 
+      width: 150,
+      renderCell: (params) => params.row.stateName || params.row.locationName || 'Global'
+    },
+    { 
+      field: 'siteName', 
+      headerName: 'Site Name', 
+      width: 170,
+      renderCell: (params) => (
+        <Chip 
+          label={params.row.siteName || (params.row.role === 'SUPER_ADMIN' ? 'All Sites' : 'Main Site')} 
+          size="small" 
+          color="info" 
+          variant="outlined" 
+          sx={{ fontWeight: 'bold' }} 
+        />
+      )
+    },
     { field: 'active', headerName: 'Status', width: 90, renderCell: (params) => params.value ? 'Active' : 'Inactive' },
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 170,
+      width: 160,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
           <Button 
@@ -190,8 +260,13 @@ export default function UserManagement() {
                       </Typography>
                     )}
                     <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#334155', fontSize: '0.825rem' }}>
-                      <LocationIcon sx={{ fontSize: '1rem', color: '#94a3b8' }} /> State: {u.locationName || 'Global'}
+                      <LocationIcon sx={{ fontSize: '1rem', color: '#94a3b8' }} /> State: {u.stateName || u.locationName || 'Global'}
                     </Typography>
+                    {u.role !== 'SUPER_ADMIN' && (
+                      <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#0284c7', fontSize: '0.825rem', fontWeight: 'bold' }}>
+                        <BusinessIcon sx={{ fontSize: '1rem', color: '#0284c7' }} /> Site: {u.siteName || 'Main Site'}
+                      </Typography>
+                    )}
                   </Box>
 
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1, borderTop: '1px solid #f1f5f9' }}>
@@ -235,9 +310,9 @@ export default function UserManagement() {
       </Paper>
 
       {/* Add/Edit User Dialog */}
-      <Dialog open={openUserDialog} onClose={() => setOpenUserDialog(false)}>
+      <Dialog open={openUserDialog} onClose={() => setOpenUserDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{isEditing ? 'Edit User' : `Add New User`}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1, minWidth: 400 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           
           <FormControl fullWidth>
             <InputLabel>Role</InputLabel>
@@ -249,21 +324,45 @@ export default function UserManagement() {
           </FormControl>
           
           {userForm.role !== 'SUPER_ADMIN' && (
-            <FormControl fullWidth>
-              <Autocomplete
-                options={locations}
-                getOptionLabel={(option) => option.name}
-                value={locations.find(l => l.id === userForm.locationId) || null}
-                onChange={(event, newValue) => {
-                  setUserForm({...userForm, locationId: newValue ? newValue.id : ''});
-                }}
-                renderInput={(params) => <TextField {...params} label="Assigned State (Location)" />}
-              />
-            </FormControl>
+            <>
+              <FormControl fullWidth>
+                <Autocomplete
+                  options={INDIAN_STATES}
+                  value={userForm.stateName || null}
+                  onChange={(event, newValue) => {
+                    setUserForm(prev => ({ ...prev, stateName: newValue || '' }));
+                  }}
+                  renderInput={(params) => <TextField {...params} label="Assigned State (Location)" required />}
+                />
+              </FormControl>
+
+              <FormControl fullWidth>
+                <Autocomplete
+                  freeSolo
+                  options={existingSitesForState}
+                  value={userForm.siteName || ''}
+                  onInputChange={(event, newInputValue) => {
+                    setUserForm(prev => ({ ...prev, siteName: newInputValue }));
+                  }}
+                  onChange={(event, newValue) => {
+                    setUserForm(prev => ({ ...prev, siteName: newValue || '' }));
+                  }}
+                  renderInput={(params) => (
+                    <TextField 
+                      {...params} 
+                      label="Site Name" 
+                      required 
+                      placeholder="e.g. Indore Solar Plant, Jaipur Unit 1, Main Site"
+                      helperText="Type any new Site Name or pick an existing site in this state"
+                    />
+                  )}
+                />
+              </FormControl>
+            </>
           )}
 
-          <TextField label="User ID" value={userForm.userId} onChange={(e) => setUserForm({...userForm, userId: e.target.value})} fullWidth />
-          <TextField label="Full Name" value={userForm.fullName} onChange={(e) => setUserForm({...userForm, fullName: e.target.value})} fullWidth />
+          <TextField label="User ID" value={userForm.userId} onChange={(e) => setUserForm({...userForm, userId: e.target.value})} fullWidth required />
+          <TextField label="Full Name" value={userForm.fullName} onChange={(e) => setUserForm({...userForm, fullName: e.target.value})} fullWidth required />
           <TextField label="Email Address (For Alerts)" type="email" value={userForm.email} onChange={(e) => setUserForm({...userForm, email: e.target.value})} fullWidth />
           <TextField 
             label={isEditing ? "Password (Leave blank to keep unchanged)" : "Password"} 
@@ -271,6 +370,7 @@ export default function UserManagement() {
             value={userForm.password} 
             onChange={(e) => setUserForm({...userForm, password: e.target.value})} 
             fullWidth 
+            required={!isEditing}
           />
           {isEditing && (
              <FormControl fullWidth>
