@@ -601,6 +601,7 @@ function EditToolbar(props) {
 }
 
 export default function StockLedger() {
+  const todayStr = new Date().toISOString().split('T')[0];
   const [rows, setRows] = useState([]);
   const [rowModesModel, setRowModesModel] = useState({});
   const [materials, setMaterials] = useState([]);
