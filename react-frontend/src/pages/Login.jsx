@@ -85,6 +85,25 @@ const Login = () => {
       const response = await api.post('/api/auth/login', { userId: userId, password: password });
       
       if (response.data.token) {
+        const role = response.data.role;
+
+        // Strictly validate Login Type selected on screen
+        if (loginType === 'Admin Login' && role !== 'SUPER_ADMIN') {
+          setError(`Login Type mismatch: This account is registered as ${role === 'STORE_INCHARGE' ? 'Store Incharge' : 'Viewer (Only View)'}. Please select '${role === 'STORE_INCHARGE' ? 'Store Incharge Login' : 'User Login (View Only)'}' in the Login Type dropdown.`);
+          setLoading(false);
+          return;
+        }
+        if (loginType === 'Store Incharge Login' && role !== 'STORE_INCHARGE') {
+          setError(`Login Type mismatch: This account is registered as ${role === 'SUPER_ADMIN' ? 'Admin' : 'Viewer (Only View)'}. Please select '${role === 'SUPER_ADMIN' ? 'Admin Login' : 'User Login (View Only)'}' in the Login Type dropdown.`);
+          setLoading(false);
+          return;
+        }
+        if (loginType === 'User Login (View Only)' && role !== 'USER') {
+          setError(`Login Type mismatch: This account is registered as ${role === 'SUPER_ADMIN' ? 'Admin' : 'Store Incharge'}. Please select '${role === 'SUPER_ADMIN' ? 'Admin Login' : 'Store Incharge Login'}' in the Login Type dropdown.`);
+          setLoading(false);
+          return;
+        }
+
         let finalLocation = null;
         
         if (response.data.role !== 'SUPER_ADMIN' && response.data.locationId && response.data.locationName) {

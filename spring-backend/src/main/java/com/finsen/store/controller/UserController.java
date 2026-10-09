@@ -57,6 +57,7 @@ public class UserController {
         }
 
         Role role = Role.valueOf(dto.role());
+        boolean isActive = dto.active() == null ? true : dto.active();
         Location location = null;
         if (role != Role.SUPER_ADMIN) {
             location = resolveLocation(dto.locationId(), dto.stateName(), dto.siteName());
@@ -64,26 +65,28 @@ public class UserController {
                 return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please specify a valid State and Site Name for this user."));
             }
 
-            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site
-            final UUID locId = location.getId();
-            final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
+            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site ONLY IF user is active
+            if (isActive) {
+                final UUID locId = location.getId();
+                final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
 
-            if (role == Role.STORE_INCHARGE) {
-                boolean hasIncharge = userRepository.findAll().stream()
-                    .anyMatch(u -> u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
-                if (hasIncharge) {
-                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
-                }
-            } else if (role == Role.USER) {
-                boolean hasViewer = userRepository.findAll().stream()
-                    .anyMatch(u -> u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
-                if (hasViewer) {
-                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                if (role == Role.STORE_INCHARGE) {
+                    boolean hasIncharge = userRepository.findAll().stream()
+                        .anyMatch(u -> u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                    if (hasIncharge) {
+                        return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
+                    }
+                } else if (role == Role.USER) {
+                    boolean hasViewer = userRepository.findAll().stream()
+                        .anyMatch(u -> u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                    if (hasViewer) {
+                        return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                    }
                 }
             }
         }
 
-        User user = new User(null, dto.userId(), dto.email(), passwordEncoder.encode(dto.password()), dto.password(), dto.fullName(), role, location, true);
+        User user = new User(null, dto.userId(), dto.email(), passwordEncoder.encode(dto.password()), dto.password(), dto.fullName(), role, location, isActive);
         user = userRepository.save(user);
 
         // Send login credentials to user's email
@@ -102,6 +105,8 @@ public class UserController {
         user.setFullName(dto.fullName());
         Role role = Role.valueOf(dto.role());
         user.setRole(role);
+        
+        boolean targetActive = dto.active() != null ? dto.active() : user.isActive();
         if (dto.active() != null) {
             user.setActive(dto.active());
         }
@@ -119,21 +124,23 @@ public class UserController {
                 return ResponseEntity.badRequest().body(java.util.Map.of("message", "Please specify a valid State and Site Name for this user."));
             }
 
-            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site
-            final UUID locId = location.getId();
-            final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
+            // Enforce: At most 1 Store Incharge and at most 1 Viewer per Site ONLY IF user is active
+            if (targetActive) {
+                final UUID locId = location.getId();
+                final String siteDisplayName = location.getSiteName() + " (" + location.getStateName() + ")";
 
-            if (role == Role.STORE_INCHARGE) {
-                boolean hasIncharge = userRepository.findAll().stream()
-                    .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
-                if (hasIncharge) {
-                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
-                }
-            } else if (role == Role.USER) {
-                boolean hasViewer = userRepository.findAll().stream()
-                    .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
-                if (hasViewer) {
-                    return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                if (role == Role.STORE_INCHARGE) {
+                    boolean hasIncharge = userRepository.findAll().stream()
+                        .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.STORE_INCHARGE && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                    if (hasIncharge) {
+                        return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Store Incharge! Only 1 Store Incharge is allowed per Site."));
+                    }
+                } else if (role == Role.USER) {
+                    boolean hasViewer = userRepository.findAll().stream()
+                        .anyMatch(u -> !u.getId().equals(id) && u.isActive() && u.getRole() == Role.USER && u.getLocation() != null && locId.equals(u.getLocation().getId()));
+                    if (hasViewer) {
+                        return ResponseEntity.badRequest().body(java.util.Map.of("message", "Site '" + siteDisplayName + "' already has an active Viewer (Only View)! Only 1 Viewer is allowed per Site."));
+                    }
                 }
             }
 
@@ -148,6 +155,18 @@ public class UserController {
         emailService.sendUserCredentialsEmail(user, plainPassword, "UPDATED");
 
         return ResponseEntity.ok(convertToDTO(user));
+    }
+
+    @PostMapping("/test-email")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<?> testEmail(@RequestBody java.util.Map<String, String> body) {
+        String email = body.get("email");
+        boolean sent = emailService.sendTestEmail(email);
+        if (sent) {
+            return ResponseEntity.ok(java.util.Map.of("message", "Test email successfully sent to " + email));
+        } else {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "Failed to send email. Check SMTP settings on server."));
+        }
     }
 
     @PutMapping("/{id}/password")
@@ -203,13 +222,13 @@ public class UserController {
                 return existing;
             }
 
-            // Also check if any existing location has name matching cleanState and site is "Main Site" or cleanState
+            // Also check if any existing location has name matching cleanState and siteName is not yet set
             if (cleanSite.equalsIgnoreCase("Main Site") || cleanSite.equalsIgnoreCase(cleanState) || cleanSite.equalsIgnoreCase(cleanState + " Site")) {
                 Location stateLoc = locationRepository.findAll().stream()
                     .filter(l -> l.getName() != null && l.getName().equalsIgnoreCase(cleanState))
                     .findFirst()
                     .orElse(null);
-                if (stateLoc != null) {
+                if (stateLoc != null && (stateLoc.getSiteName() == null || stateLoc.getSiteName().isBlank() || stateLoc.getSiteName().equalsIgnoreCase(cleanSite))) {
                     stateLoc.setStateName(cleanState);
                     stateLoc.setSiteName(cleanSite);
                     return locationRepository.save(stateLoc);

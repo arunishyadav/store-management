@@ -32,6 +32,21 @@ spring:
       ddl-auto: update
     show-sql: false
 
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        transport:
+          protocol: smtp
+
 app:
   jwt:
     secret: 9A45B951804E1F0314486580971D5745F5428F322303036495147814E6966627
