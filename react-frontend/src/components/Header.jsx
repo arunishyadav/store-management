@@ -125,16 +125,15 @@ const Header = ({ onDrawerToggle }) => {
     });
   }, [stateSearch, stateSitesMap]);
 
-  // Active State & Site display name for header chip
-  const displayLocation = useMemo(() => {
-    const stName = selectedLocation?.stateName || user?.stateName || selectedLocation?.name || 'Madhya Pradesh';
-    const sName = selectedLocation?.siteName || user?.siteName || (user?.role === 'SUPER_ADMIN' ? 'All Sites' : 'Main Site');
-    return {
-      desktop: `STATE: ${stName} | SITE: ${sName}`,
-      mobile: `${stName} • ${sName}`,
-      tooltip: `Current Location: ${stName} (Site: ${sName})${user?.role === 'SUPER_ADMIN' ? ' - Click to switch site' : ''}`
-    };
-  }, [selectedLocation, user]);
+  // Active state & site display name for header chip
+  const headerLocationLabel = useMemo(() => {
+    const sName = selectedLocation?.siteName || user?.siteName || 'Main Site';
+    const stName = selectedLocation?.stateName || selectedLocation?.name || user?.stateName || user?.location || 'State';
+    if (isMobile) {
+      return `${stName} • ${sName}`;
+    }
+    return `STATE: ${stName} | SITE: ${sName}`;
+  }, [selectedLocation, user, isMobile]);
 
   return (
     <AppBar position="fixed" sx={{ 
@@ -169,10 +168,10 @@ const Header = ({ onDrawerToggle }) => {
             </Tooltip>
 
             {/* Prominent State & Site Badge */}
-            <Tooltip title={displayLocation.tooltip}>
+            <Tooltip title={user.role === 'SUPER_ADMIN' ? "Click to Switch State & Site" : "Assigned Work Location & Site"}>
               <Chip
                 icon={<LocationOn sx={{ color: '#0284c7 !important' }} />}
-                label={isMobile ? displayLocation.mobile : displayLocation.desktop}
+                label={headerLocationLabel}
                 onClick={handleOpenSiteDialog}
                 sx={{
                   fontWeight: 'bold',

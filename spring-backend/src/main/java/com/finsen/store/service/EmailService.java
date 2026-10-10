@@ -102,16 +102,19 @@ public class EmailService {
                 "OFFICIAL LOGIN CREDENTIALS:\n" +
                 "====================================================\n" +
                 "🌐 Website URL: https://finsenstore.com/login\n" +
+                "👤 Full Name: %s\n" +
+                "📧 Email Address: %s\n" +
+                "🛡️ Designation / Role: %s\n" +
+                "📍 Assigned State: %s\n" +
+                "🏢 Assigned Site Name: %s\n" +
                 "👤 User ID: %s\n" +
                 "🔑 Password: %s\n" +
-                "🛡️ Role: %s\n" +
-                "📍 Assigned State: %s\n" +
-                "🏢 Assigned Site: %s\n" +
                 "====================================================\n\n" +
                 "HOW TO LOGIN (STEP-BY-STEP):\n" +
                 "1. Open https://finsenstore.com/login in your browser.\n" +
                 "2. Under 'State (Location)', select: %s\n" +
-                "3. Under 'Site Name', enter: %s (Exact spelling required, spelling mistake will cause login failure)\n" +
+                "3. Under 'Site Name', type EXACTLY: %s\n" +
+                "   (Spelling mistake hone par login nahi hoga!)\n" +
                 "4. Under 'Login Type', select: %s\n" +
                 "5. Enter your User ID: %s\n" +
                 "6. Enter your Password: %s\n" +
@@ -122,11 +125,13 @@ public class EmailService {
                 "Finsen Ritter Limited",
                 recipientName,
                 actionType,
-                user.getUserId(),
-                pwdToDisplay,
+                recipientName,
+                user.getEmail(),
                 roleTitle,
                 stateName,
                 siteName,
+                user.getUserId(),
+                pwdToDisplay,
                 stateName,
                 siteName,
                 loginTypeOption,
@@ -148,20 +153,22 @@ public class EmailService {
                 "    <p style='font-size: 15px; line-height: 1.5;'>Your account details have been <strong>%s</strong>. Here are your official login credentials to access the Finsen Store portal:</p>" +
                 "    <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;'>" +
                 "      <table style='width: 100%%; font-size: 15px; border-collapse: collapse;'>" +
-                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold; width: 140px;'>🌐 Portal URL:</td><td style='padding: 6px 0;'><a href='https://finsenstore.com/login' style='color: #01BAEF; font-weight: bold;'>https://finsenstore.com/login</a></td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold; width: 150px;'>🌐 Portal URL:</td><td style='padding: 6px 0;'><a href='https://finsenstore.com/login' style='color: #01BAEF; font-weight: bold;'>https://finsenstore.com/login</a></td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🛡️ Designation / Role:</td><td style='padding: 6px 0;'><span style='background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-weight: bold;'>%s</span></td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>👤 Full Name:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>📧 Email Address:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>📍 Assigned State:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🏢 Assigned Site Name:</td><td style='padding: 6px 0; font-weight: bold; color: #0284c7;'>%s</td></tr>" +
                 "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>👤 User ID:</td><td style='padding: 6px 0; font-weight: bold; color: #0f172a;'>%s</td></tr>" +
                 "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🔑 Password:</td><td style='padding: 6px 0; font-weight: bold; color: #0B4F6C;'>%s</td></tr>" +
-                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🛡️ Account Role:</td><td style='padding: 6px 0;'><span style='background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-weight: bold;'>%s</span></td></tr>" +
-                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>📍 State:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
-                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🏢 Site Name:</td><td style='padding: 6px 0; font-weight: bold; color: #0284c7;'>%s</td></tr>" +
                 "      </table>" +
                 "    </div>" +
                 "    <div style='background: #f0fdf4; border-left: 4px solid #16a34a; padding: 15px; border-radius: 4px; margin-bottom: 25px;'>" +
-                "      <h4 style='margin: 0 0 10px 0; color: #166534;'>📋 HOW TO LOGIN (STEP-BY-STEP):</h4>" +
+                "      <h4 style='margin: 0 0 10px 0; color: #166534;'>📋 HOW TO LOGIN:</h4>" +
                 "      <ol style='margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #15803d;'>" +
                 "        <li>Open <a href='https://finsenstore.com/login' target='_blank'><strong>https://finsenstore.com/login</strong></a></li>" +
                 "        <li>Under <strong>'State (Location)'</strong>, select: <strong>%s</strong></li>" +
-                "        <li>Under <strong>'Site Name'</strong>, enter: <strong>%s</strong> (Exact spelling zaroori hai)</li>" +
+                "        <li>Under <strong>'Site Name'</strong>, enter EXACTLY: <strong>%s</strong><br><small style='color: #b91c1c;'>(Note: Spelling bilkul same honi chahiye, spelling mistake hone par login nahi hoga)</small></li>" +
                 "        <li>Under <strong>'Login Type'</strong>, select: <strong>%s</strong></li>" +
                 "        <li>Enter your <strong>User ID</strong> and <strong>Password</strong></li>" +
                 "        <li>Click <strong>Sign In</strong></li>" +
@@ -179,12 +186,15 @@ public class EmailService {
                 "</body></html>",
                 recipientName,
                 actionType,
-                user.getUserId(),
-                pwdToDisplay,
                 roleTitle,
+                recipientName,
+                user.getEmail(),
                 stateName,
                 siteName,
+                user.getUserId(),
+                pwdToDisplay,
                 stateName,
+                siteName,
                 loginTypeOption
             );
 

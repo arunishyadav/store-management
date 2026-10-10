@@ -37,12 +37,12 @@ const defaultLocations = [
 const Login = () => {
   const [country] = useState('India');
   const [stateId, setStateId] = useState('');
-  const [siteName, setSiteName] = useState('');
   const [locations, setLocations] = useState(defaultLocations);
   const [loginType, setLoginType] = useState('Admin Login');
   
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
+  const [siteName, setSiteName] = useState('');
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,20 +68,6 @@ const Login = () => {
     fetchLocations();
   }, []);
 
-  const existingSitesForSelectedState = useMemo(() => {
-    const selectedLoc = locations.find(l => l.id === stateId);
-    const stName = selectedLoc?.stateName || selectedLoc?.name;
-    if (!stName) return [];
-    const set = new Set();
-    locations.forEach(loc => {
-      const s = loc.stateName || loc.name;
-      if (s && s.toLowerCase() === stName.toLowerCase() && loc.siteName && loc.siteName.trim()) {
-        set.add(loc.siteName.trim());
-      }
-    });
-    return Array.from(set);
-  }, [locations, stateId]);
-
   const handleLoginTypeChange = (e) => {
     const type = e.target.value;
     setLoginType(type);
@@ -94,12 +80,11 @@ const Login = () => {
     setError('');
 
     const effectiveStateId = stateId || (locations[0] ? locations[0].id : '');
-    const selectedLocObj = locations.find(l => l.id === effectiveStateId) || locations[0];
-    const stateName = selectedLocObj?.stateName || selectedLocObj?.name || 'Madhya Pradesh';
+    const selectedLoc = locations.find(l => l.id === effectiveStateId);
+    const selectedStateName = selectedLoc ? (selectedLoc.stateName || selectedLoc.name) : '';
 
-    // Validate Site Name on frontend for Store Incharge / Viewer
     if (loginType !== 'Admin Login' && (!siteName || !siteName.trim())) {
-      setError('Please enter your assigned Site Name. Exact spelling is required (check your email).');
+      setError('Please enter your assigned Site Name to login.');
       return;
     }
 
@@ -107,45 +92,30 @@ const Login = () => {
 
     try {
       const response = await api.post('/api/auth/login', { 
-        userId: userId.trim(), 
-        password: password.trim(),
-        loginType: loginType,
-        stateName: stateName,
-        siteName: siteName.trim()
+        userId: userId, 
+        password: password,
+        stateName: selectedStateName,
+        siteName: siteName.trim(),
+        loginType: loginType
       });
       
       if (response.data.token) {
         let finalLocation = null;
         
-        if (response.data.role !== 'SUPER_ADMIN') {
-          // STRICT LOCK for non-Super Admin (Store Incharge / User) to assigned DB location
+        if (response.data.locationId) {
           finalLocation = { 
             id: response.data.locationId, 
-            name: response.data.locationName || `${response.data.siteName || 'Main Site'} (${response.data.stateName || stateName})`,
-            stateName: response.data.stateName || stateName,
-            siteName: response.data.siteName || 'Main Site'
+            name: response.data.locationName || response.data.stateName,
+            stateName: response.data.stateName || response.data.locationName,
+            siteName: response.data.siteName || response.data.locationName
           };
         } else {
-          // Super Admin can use typed site or default location
-          if (siteName && siteName.trim()) {
-            const matched = locations.find(l => 
-              (l.stateName || l.name || '').toLowerCase() === stateName.toLowerCase() &&
-              (l.siteName || '').toLowerCase() === siteName.trim().toLowerCase()
-            );
-            finalLocation = matched || { 
-              id: effectiveStateId, 
-              name: `${siteName.trim()} (${stateName})`, 
-              stateName: stateName, 
-              siteName: siteName.trim() 
-            };
-          } else {
-            finalLocation = locations.find(l => l.id === effectiveStateId) || locations[0] || { 
-              id: 'default', 
-              name: 'Madhya Pradesh', 
-              stateName: 'Madhya Pradesh', 
-              siteName: 'Main Site' 
-            };
-          }
+          finalLocation = { 
+            id: effectiveStateId || 'default', 
+            name: selectedStateName || 'Madhya Pradesh', 
+            stateName: selectedStateName || 'Madhya Pradesh', 
+            siteName: siteName.trim() || 'Main Site' 
+          };
         }
 
         login(response.data.token, { 
@@ -170,7 +140,7 @@ const Login = () => {
       } else if (err.code === 'ERR_NETWORK' || !err.response || err.response.status === 502 || err.response.status === 503) {
         setError('Unable to connect to backend server. Please check your network or try again in a few seconds.');
       } else {
-        setError('Login failed. Invalid User ID or Password.');
+        setError('Login failed. Invalid User ID, Password, or Site Name.');
       }
     } finally {
       setLoading(false);
@@ -376,33 +346,18 @@ const Login = () => {
                 />
               </FormControl>
 
-              <FormControl fullWidth margin="normal">
-                <Autocomplete
-                  freeSolo
-                  options={existingSitesForSelectedState}
-                  value={siteName}
-                  onInputChange={(event, newInputValue) => {
-                    setSiteName(newInputValue || '');
-                  }}
-                  onChange={(event, newValue) => {
-                    setSiteName(newValue || '');
-                  }}
-                  renderInput={(params) => (
-                    <TextField 
-                      {...params} 
-                      label={loginType === 'Admin Login' ? "Site Name (Optional for Admin)" : "Site Name *"} 
-                      placeholder="e.g. Phalodi Site, Barmer Site, Vibha Site, Main Site"
-                      helperText={
-                        loginType === 'Admin Login' 
-                          ? "Admin can enter any site or leave blank" 
-                          : "Enter exact Site Name from your email (spelling mistake will fail login)"
-                      }
-                      required={loginType !== 'Admin Login'}
-                      sx={fieldSx}
-                    />
-                  )}
-                />
-              </FormControl>
+              <TextField
+                fullWidth
+                label={loginType === 'Admin Login' ? "Site Name (Optional for Admin)" : "Site Name *"}
+                variant="outlined"
+                margin="normal"
+                value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
+                placeholder="e.g. phalodi site, barhmedh site, Vibha bio cng"
+                helperText={loginType === 'Admin Login' ? "Admin can enter any site name or leave blank" : "Enter your exact assigned Site Name (as sent in your email)"}
+                required={loginType !== 'Admin Login'}
+                sx={fieldSx}
+              />
 
               <FormControl fullWidth margin="normal">
                 <InputLabel sx={{ color: isDark ? '#94A3B8 !important' : '#475569 !important' }}>
