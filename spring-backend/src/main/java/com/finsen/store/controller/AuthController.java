@@ -4,6 +4,7 @@ import com.finsen.store.dto.AuthRequest;
 import com.finsen.store.dto.AuthResponse;
 import com.finsen.store.entity.User;
 import com.finsen.store.entity.Location;
+import com.finsen.store.entity.Role;
 import com.finsen.store.repository.UserRepository;
 import com.finsen.store.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
