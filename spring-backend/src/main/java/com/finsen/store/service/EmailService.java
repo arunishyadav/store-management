@@ -111,10 +111,11 @@ public class EmailService {
                 "HOW TO LOGIN (STEP-BY-STEP):\n" +
                 "1. Open https://finsenstore.com/login in your browser.\n" +
                 "2. Under 'State (Location)', select: %s\n" +
-                "3. Under 'Login Type', select: %s\n" +
-                "4. Enter your User ID: %s\n" +
-                "5. Enter your Password: %s\n" +
-                "6. Click 'Sign In'.\n\n" +
+                "3. Under 'Site Name', enter: %s (Exact spelling required, spelling mistake will cause login failure)\n" +
+                "4. Under 'Login Type', select: %s\n" +
+                "5. Enter your User ID: %s\n" +
+                "6. Enter your Password: %s\n" +
+                "7. Click 'Sign In'.\n\n" +
                 "Please keep your credentials safe and do not share them.\n\n" +
                 "Regards,\n" +
                 "Finsen Store Administration\n" +
@@ -127,6 +128,7 @@ public class EmailService {
                 stateName,
                 siteName,
                 stateName,
+                siteName,
                 loginTypeOption,
                 user.getUserId(),
                 pwdToDisplay
@@ -151,14 +153,15 @@ public class EmailService {
                 "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🔑 Password:</td><td style='padding: 6px 0; font-weight: bold; color: #0B4F6C;'>%s</td></tr>" +
                 "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🛡️ Account Role:</td><td style='padding: 6px 0;'><span style='background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-weight: bold;'>%s</span></td></tr>" +
                 "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>📍 State:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
-                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🏢 Site Name:</td><td style='padding: 6px 0; font-weight: 500;'>%s</td></tr>" +
+                "        <tr><td style='padding: 6px 0; color: #64748b; font-weight: bold;'>🏢 Site Name:</td><td style='padding: 6px 0; font-weight: bold; color: #0284c7;'>%s</td></tr>" +
                 "      </table>" +
                 "    </div>" +
                 "    <div style='background: #f0fdf4; border-left: 4px solid #16a34a; padding: 15px; border-radius: 4px; margin-bottom: 25px;'>" +
-                "      <h4 style='margin: 0 0 10px 0; color: #166534;'>📋 HOW TO LOGIN:</h4>" +
+                "      <h4 style='margin: 0 0 10px 0; color: #166534;'>📋 HOW TO LOGIN (STEP-BY-STEP):</h4>" +
                 "      <ol style='margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #15803d;'>" +
                 "        <li>Open <a href='https://finsenstore.com/login' target='_blank'><strong>https://finsenstore.com/login</strong></a></li>" +
                 "        <li>Under <strong>'State (Location)'</strong>, select: <strong>%s</strong></li>" +
+                "        <li>Under <strong>'Site Name'</strong>, enter: <strong>%s</strong> (Exact spelling zaroori hai)</li>" +
                 "        <li>Under <strong>'Login Type'</strong>, select: <strong>%s</strong></li>" +
                 "        <li>Enter your <strong>User ID</strong> and <strong>Password</strong></li>" +
                 "        <li>Click <strong>Sign In</strong></li>" +

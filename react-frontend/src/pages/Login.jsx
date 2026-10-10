@@ -37,6 +37,7 @@ const defaultLocations = [
 const Login = () => {
   const [country] = useState('India');
   const [stateId, setStateId] = useState('');
+  const [siteName, setSiteName] = useState('');
   const [locations, setLocations] = useState(defaultLocations);
   const [loginType, setLoginType] = useState('Admin Login');
   
@@ -67,6 +68,20 @@ const Login = () => {
     fetchLocations();
   }, []);
 
+  const existingSitesForSelectedState = useMemo(() => {
+    const selectedLoc = locations.find(l => l.id === stateId);
+    const stName = selectedLoc?.stateName || selectedLoc?.name;
+    if (!stName) return [];
+    const set = new Set();
+    locations.forEach(loc => {
+      const s = loc.stateName || loc.name;
+      if (s && s.toLowerCase() === stName.toLowerCase() && loc.siteName && loc.siteName.trim()) {
+        set.add(loc.siteName.trim());
+      }
+    });
+    return Array.from(set);
+  }, [locations, stateId]);
+
   const handleLoginTypeChange = (e) => {
     const type = e.target.value;
     setLoginType(type);
@@ -79,44 +94,58 @@ const Login = () => {
     setError('');
 
     const effectiveStateId = stateId || (locations[0] ? locations[0].id : '');
+    const selectedLocObj = locations.find(l => l.id === effectiveStateId) || locations[0];
+    const stateName = selectedLocObj?.stateName || selectedLocObj?.name || 'Madhya Pradesh';
+
+    // Validate Site Name on frontend for Store Incharge / Viewer
+    if (loginType !== 'Admin Login' && (!siteName || !siteName.trim())) {
+      setError('Please enter your assigned Site Name. Exact spelling is required (check your email).');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await api.post('/api/auth/login', { userId: userId, password: password });
+      const response = await api.post('/api/auth/login', { 
+        userId: userId.trim(), 
+        password: password.trim(),
+        loginType: loginType,
+        stateName: stateName,
+        siteName: siteName.trim()
+      });
       
       if (response.data.token) {
-        const role = response.data.role;
-
-        // Strictly validate Login Type selected on screen
-        if (loginType === 'Admin Login' && role !== 'SUPER_ADMIN') {
-          setError(`Login Type mismatch: This account is registered as ${role === 'STORE_INCHARGE' ? 'Store Incharge' : 'Viewer (Only View)'}. Please select '${role === 'STORE_INCHARGE' ? 'Store Incharge Login' : 'User Login (View Only)'}' in the Login Type dropdown.`);
-          setLoading(false);
-          return;
-        }
-        if (loginType === 'Store Incharge Login' && role !== 'STORE_INCHARGE') {
-          setError(`Login Type mismatch: This account is registered as ${role === 'SUPER_ADMIN' ? 'Admin' : 'Viewer (Only View)'}. Please select '${role === 'SUPER_ADMIN' ? 'Admin Login' : 'User Login (View Only)'}' in the Login Type dropdown.`);
-          setLoading(false);
-          return;
-        }
-        if (loginType === 'User Login (View Only)' && role !== 'USER') {
-          setError(`Login Type mismatch: This account is registered as ${role === 'SUPER_ADMIN' ? 'Admin' : 'Store Incharge'}. Please select '${role === 'SUPER_ADMIN' ? 'Admin Login' : 'Store Incharge Login'}' in the Login Type dropdown.`);
-          setLoading(false);
-          return;
-        }
-
         let finalLocation = null;
         
-        if (response.data.role !== 'SUPER_ADMIN' && response.data.locationId && response.data.locationName) {
+        if (response.data.role !== 'SUPER_ADMIN') {
           // STRICT LOCK for non-Super Admin (Store Incharge / User) to assigned DB location
           finalLocation = { 
             id: response.data.locationId, 
-            name: response.data.locationName,
-            stateName: response.data.stateName || response.data.locationName,
-            siteName: response.data.siteName || response.data.locationName
+            name: response.data.locationName || `${response.data.siteName || 'Main Site'} (${response.data.stateName || stateName})`,
+            stateName: response.data.stateName || stateName,
+            siteName: response.data.siteName || 'Main Site'
           };
         } else {
-          // Super Admin can use selected state or default location
-          finalLocation = locations.find(l => l.id === effectiveStateId) || locations[0] || { id: 'default', name: 'Madhya Pradesh', stateName: 'Madhya Pradesh', siteName: 'Main Site' };
+          // Super Admin can use typed site or default location
+          if (siteName && siteName.trim()) {
+            const matched = locations.find(l => 
+              (l.stateName || l.name || '').toLowerCase() === stateName.toLowerCase() &&
+              (l.siteName || '').toLowerCase() === siteName.trim().toLowerCase()
+            );
+            finalLocation = matched || { 
+              id: effectiveStateId, 
+              name: `${siteName.trim()} (${stateName})`, 
+              stateName: stateName, 
+              siteName: siteName.trim() 
+            };
+          } else {
+            finalLocation = locations.find(l => l.id === effectiveStateId) || locations[0] || { 
+              id: 'default', 
+              name: 'Madhya Pradesh', 
+              stateName: 'Madhya Pradesh', 
+              siteName: 'Main Site' 
+            };
+          }
         }
 
         login(response.data.token, { 
@@ -341,6 +370,34 @@ const Login = () => {
                       {...params} 
                       label="State (Location)" 
                       required 
+                      sx={fieldSx}
+                    />
+                  )}
+                />
+              </FormControl>
+
+              <FormControl fullWidth margin="normal">
+                <Autocomplete
+                  freeSolo
+                  options={existingSitesForSelectedState}
+                  value={siteName}
+                  onInputChange={(event, newInputValue) => {
+                    setSiteName(newInputValue || '');
+                  }}
+                  onChange={(event, newValue) => {
+                    setSiteName(newValue || '');
+                  }}
+                  renderInput={(params) => (
+                    <TextField 
+                      {...params} 
+                      label={loginType === 'Admin Login' ? "Site Name (Optional for Admin)" : "Site Name *"} 
+                      placeholder="e.g. Phalodi Site, Barmer Site, Vibha Site, Main Site"
+                      helperText={
+                        loginType === 'Admin Login' 
+                          ? "Admin can enter any site or leave blank" 
+                          : "Enter exact Site Name from your email (spelling mistake will fail login)"
+                      }
+                      required={loginType !== 'Admin Login'}
                       sx={fieldSx}
                     />
                   )}
