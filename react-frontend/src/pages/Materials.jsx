@@ -52,12 +52,20 @@ const Materials = () => {
 
   const allUniqueMaterials = useMemo(() => {
     const uniqueMaterialsMap = {};
+    const cleanStr = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
     (rawMaterials || []).forEach(mat => {
-      const key = (mat.name || mat.materialCode || mat.id).trim().toLowerCase();
+      const codeKey = cleanStr(mat.materialCode);
+      const nameKey = cleanStr(mat.name);
+      const key = codeKey || nameKey || mat.id;
+
       if (!uniqueMaterialsMap[key]) {
         uniqueMaterialsMap[key] = { ...mat, ids: [mat.id] };
       } else {
         uniqueMaterialsMap[key].ids.push(mat.id);
+        if (mat.name && (!uniqueMaterialsMap[key].name || uniqueMaterialsMap[key].name.length < mat.name.length)) {
+          uniqueMaterialsMap[key].name = mat.name;
+        }
       }
     });
     return Object.values(uniqueMaterialsMap);
@@ -90,13 +98,29 @@ const Materials = () => {
     return total;
   };
 
+  const clean = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
   const processedRows = useMemo(() => {
     return allUniqueMaterials.map(mat => {
-      const matEntries = (rawStockEntries || []).filter(e => 
-        mat.ids.includes(e.material?.id) ||
-        (e.material?.name && String(e.material?.name).trim().toLowerCase() === String(mat.name).trim().toLowerCase()) ||
-        (e.materialCode && String(e.materialCode).trim().toLowerCase() === String(mat.materialCode).trim().toLowerCase() && (!e.material?.name || e.material?.name === mat.name))
-      );
+      const matEntries = (rawStockEntries || []).filter(e => {
+        if (!e) return false;
+        // 1. Direct Material ID match
+        if (mat.ids && mat.ids.includes(e.material?.id)) return true;
+        if (mat.id && e.material?.id && String(mat.id) === String(e.material.id)) return true;
+
+        // 2. Normalized Code and Name matching
+        const eCode = clean(e.materialCode || e.material?.materialCode);
+        const mCode = clean(mat.materialCode);
+        const eName = clean(e.materialName || e.material?.name);
+        const mName = clean(mat.name);
+
+        if (eCode && mCode && eCode === mCode) return true;
+        if (eName && mName && eName === mName) return true;
+        if (eCode && mName && eCode === mName) return true;
+        if (eName && mCode && eName === mCode) return true;
+
+        return false;
+      });
 
       const totalArrival = calculateGroupedArrival(matEntries);
       const totalOutgoing = matEntries.reduce((sum, e) => sum + parseFloat(e.outgoingQuantity || 0), 0);
@@ -112,7 +136,7 @@ const Materials = () => {
       const arrivalDateStr = latestArrival && latestArrival.arrivalDate ? String(latestArrival.arrivalDate).substring(0, 10) : 'N/A';
       const arrivalTimeStr = latestArrival && latestArrival.arrivalTime ? latestArrival.arrivalTime : '';
       const arrivalDateTime = arrivalDateStr !== 'N/A' ? `${arrivalDateStr} ${arrivalTimeStr}`.trim() : 'N/A';
-      const laneWalaName = latestArrival ? (latestArrival.broughtBy || 'N/A') : 'N/A';
+      const laneWalaName = latestArrival ? (latestArrival.broughtBy || latestArrival.laneWalaKaName || latestArrival.issuedBy || 'N/A') : 'N/A';
 
       const dateSpecificName = (latestArrival && latestArrival.materialName && latestArrival.materialName.trim())
         ? latestArrival.materialName
