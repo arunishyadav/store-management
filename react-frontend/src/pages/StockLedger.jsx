@@ -1458,6 +1458,20 @@ export default function StockLedger() {
     ]);
   };
 
+  // Ensure rowModesModel strictly contains only rows present in filteredRows
+  // This completely eliminates the MUI DataGrid "No row with id found" error!
+  const sanitizedRowModesModel = useMemo(() => {
+    if (!rowModesModel || !Object.keys(rowModesModel).length) return {};
+    const validRowIds = new Set((filteredRows || []).map(r => r.id));
+    const cleanModel = {};
+    Object.keys(rowModesModel).forEach(id => {
+      if (validRowIds.has(id)) {
+        cleanModel[id] = rowModesModel[id];
+      }
+    });
+    return cleanModel;
+  }, [rowModesModel, filteredRows]);
+
   return (
     <Box sx={{ p: { xs: 0, sm: 1, md: 2 }, height: { xs: 'calc(100vh - 120px)', sm: 'calc(100vh - 100px)' }, display: 'flex', flexDirection: 'column', maxWidth: '100vw', boxSizing: 'border-box' }}>
       <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mt: { xs: 0.5, sm: 0 }, px: { xs: 1.5, sm: 0 }, fontSize: { xs: '1.4rem', sm: '2.125rem' } }}>
@@ -1474,7 +1488,7 @@ export default function StockLedger() {
                 rows={filteredRows}
                 columns={columns}
                 editMode="row"
-                rowModesModel={rowModesModel}
+                rowModesModel={sanitizedRowModesModel}
                 density="compact"
                 onRowModesModelChange={handleRowModesModelChange}
                 onRowEditStop={handleRowEditStop}
